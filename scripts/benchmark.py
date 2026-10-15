@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-sy vs rsync benchmark runner with JSONL history tracking.
+rsy vs rsync benchmark runner with JSONL history tracking.
 
 Usage:
     python scripts/benchmark.py                    # Run all benchmarks
@@ -32,7 +32,7 @@ from typing import Literal
 # ============================================================================
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_SY_BINARY = REPO_ROOT / "target" / "release" / "sy"
+DEFAULT_SY_BINARY = REPO_ROOT / "target" / "release" / "rsy"
 HISTORY_FILE = REPO_ROOT / "benchmarks" / "history.jsonl"
 BUFFER_SIZE = 1024 * 1024
 
@@ -61,7 +61,7 @@ class TransferEvidence:
     status: Literal["zero_file_payload", "file_transfer", "proof_unavailable"]
     interface: str
     diagnostic: str = ""
-    bytes_transferred: int | None = None  # sy's literal-file-byte counter only
+    bytes_transferred: int | None = None  # rsy's literal-file-byte counter only
     regular_file_transfers: int | None = None
     rsync_log_bytes: int | None = None  # %b may include protocol, NOT payload bytes
 
@@ -193,23 +193,23 @@ def sha256_file(path: Path) -> str:
 def resolve_sy_binary(path: Path) -> Path:
     binary = path.expanduser().resolve(strict=True)
     if not binary.is_file() or not os.access(binary, os.X_OK):
-        raise ValueError(f"sy binary is not an executable file: {binary}")
+        raise ValueError(f"rsy binary is not an executable file: {binary}")
     return binary
 
 
-def get_version_info(sy_binary: Path) -> dict:
+def get_version_info(rsy_binary: Path) -> dict:
     """Record the tested artifact; repository HEAD is only harness provenance."""
     result = subprocess.run(
-        [str(sy_binary), "--version"], capture_output=True, text=True, check=True
+        [str(rsy_binary), "--version"], capture_output=True, text=True, check=True
     )
     version = result.stdout.strip()
     if not version:
-        raise ValueError(f"sy binary returned an empty version: {sy_binary}")
+        raise ValueError(f"rsy binary returned an empty version: {rsy_binary}")
     info = {
-        "sy": version.removeprefix("sy "),
-        "sy_binary": {
-            "path": str(sy_binary),
-            "sha256": sha256_file(sy_binary),
+        "rsy": version.removeprefix("rsy "),
+        "rsy_binary": {
+            "path": str(rsy_binary),
+            "sha256": sha256_file(rsy_binary),
             "version": version,
         },
     }
@@ -350,12 +350,12 @@ RSYNC_FORMAT = "SYBENCH|%i|%b|%n"
 
 
 def transfer_evidence(tool: str, stdout: str, expected: dict) -> TransferEvidence:
-    interface = "sy --json summary" if tool == "sy" else "rsync -ii %i/%b/%n"
+    interface = "rsy --json summary" if tool == "rsy" else "rsync -ii %i/%b/%n"
 
     def unavailable(reason):
         return TransferEvidence("proof_unavailable", interface, reason)
 
-    if tool == "sy":
+    if tool == "rsy":
         # Current owner: SyncReporter.finish / SyncEvent::Summary in
         # src/sync/output.rs. files_updated includes SyncOp::Metadata.
         try:
@@ -520,7 +520,7 @@ def copy_tree(source: str, dest: str, ssh_target: str | None):
 def benchmark_scenario(
     scenario_name: str,
     config: dict,
-    sy_binary: Path,
+    rsy_binary: Path,
     transport: str = "local",
     ssh_target: str | None = None,
     iterations: int = 3,
@@ -535,7 +535,7 @@ def benchmark_scenario(
     if transport == "local":
         ssh_target = None
     results = []
-    tools = ["sy"] + (["rsync"] if shutil.which("rsync") else [])
+    tools = ["rsy"] + (["rsync"] if shutil.which("rsync") else [])
 
     with tempfile.TemporaryDirectory() as tmpdir:
         source_dir = Path(tmpdir) / "source"
@@ -547,9 +547,9 @@ def benchmark_scenario(
         remote_base = None
         if ssh_target:
             remote_base = ssh_command(
-                ssh_target, ["mktemp", "-d", "/tmp/sy_bench.XXXXXXXX"]
+                ssh_target, ["mktemp", "-d", "/tmp/rsy_bench.XXXXXXXX"]
             ).stdout.strip()
-            if not remote_base.startswith("/tmp/sy_bench.") or "/" in remote_base[5:]:
+            if not remote_base.startswith("/tmp/rsy_bench.") or "/" in remote_base[5:]:
                 raise ValueError(f"invalid remote scratch path: {remote_base!r}")
         base = remote_base or tmpdir
 
@@ -575,17 +575,17 @@ def benchmark_scenario(
                     basis = f"{base}/{tool}_basis"
                     dest_arg = f"{ssh_target}:{dest}" if ssh_target else dest
                     # Archive contents syntax for ordinary caller-owned files.
-                    # sy -a is not generally rsync -a's owner/group/device policy.
-                    # Filtering is opt-in in the current sy CLI.
+                    # rsy -a is not generally rsync -a's owner/group/device policy.
+                    # Filtering is opt-in in the current rsy CLI.
                     args = (
                         [
-                            str(sy_binary),
+                            str(rsy_binary),
                             "-a",
                             "--json",
                             f"{source_dir}{os.sep}",
                             dest_arg,
                         ]
-                        if tool == "sy"
+                        if tool == "rsy"
                         else [
                             "rsync",
                             "-a",
@@ -774,28 +774,28 @@ def show_history(limit: int = 10):
             by_scenario[key][r["tool"]] = r
 
         print(
-            f"{'Scenario':<15} {'Operation':<12} {'sy (ms)':<12} {'rsync (ms)':<12} {'Speedup':<10}"
+            f"{'Scenario':<15} {'Operation':<12} {'rsy (ms)':<12} {'rsync (ms)':<12} {'Speedup':<10}"
         )
         print("-" * 65)
 
         for (scenario, op), tools in sorted(by_scenario.items()):
-            sy_result = tools.get("sy", {})
+            rsy_result = tools.get("rsy", {})
             rsync_result = tools.get("rsync", {})
-            sy_ms = sy_result.get("ms") if not sy_result.get("err") else None
+            rsy_ms = rsy_result.get("ms") if not rsy_result.get("err") else None
             rsync_ms = rsync_result.get("ms") if not rsync_result.get("err") else None
 
-            if sy_ms and rsync_ms:
-                speedup = rsync_ms / sy_ms
+            if rsy_ms and rsync_ms:
+                speedup = rsync_ms / rsy_ms
                 speedup_str = (
                     f"{speedup:.2f}x" if speedup >= 1 else f"{1 / speedup:.2f}x slower"
                 )
             else:
                 speedup_str = "N/A"
 
-            sy_text = (
+            rsy_text = (
                 "ERROR"
-                if sy_result.get("err")
-                else (f"{sy_ms:.1f}" if sy_ms is not None else "-")
+                if rsy_result.get("err")
+                else (f"{rsy_ms:.1f}" if rsy_ms is not None else "-")
             )
             rsync_text = (
                 "ERROR"
@@ -803,7 +803,7 @@ def show_history(limit: int = 10):
                 else (f"{rsync_ms:.1f}" if rsync_ms is not None else "-")
             )
             print(
-                f"{scenario:<15} {op:<12} {sy_text:<12} {rsync_text:<12} {speedup_str:<10}"
+                f"{scenario:<15} {op:<12} {rsy_text:<12} {rsync_text:<12} {speedup_str:<10}"
             )
 
         print()
@@ -872,7 +872,7 @@ def print_results(results: list[BenchmarkResult]):
     print("-" * 75)
 
     for (scenario, op), tools in sorted(by_scenario.items()):
-        for tool_name in ["sy", "rsync"]:
+        for tool_name in ["rsy", "rsync"]:
             if tool_name in tools:
                 r = tools[tool_name]
                 if r.error:
@@ -887,25 +887,25 @@ def print_results(results: list[BenchmarkResult]):
 
     # Summary comparison
     print(f"\n{'=' * 80}")
-    print("Summary: sy vs rsync")
+    print("Summary: rsy vs rsync")
     print(f"{'=' * 80}\n")
 
     for (scenario, op), tools in sorted(by_scenario.items()):
-        sy_r = tools.get("sy")
+        rsy_r = tools.get("rsy")
         rsync_r = tools.get("rsync")
 
         if (
-            sy_r
+            rsy_r
             and rsync_r
-            and not sy_r.error
+            and not rsy_r.error
             and not rsync_r.error
-            and sy_r.duration_ms > 0
+            and rsy_r.duration_ms > 0
         ):
-            speedup = rsync_r.duration_ms / sy_r.duration_ms
+            speedup = rsync_r.duration_ms / rsy_r.duration_ms
             if speedup >= 1:
-                print(f"{scenario}/{op}: sy is {speedup:.2f}x FASTER")
+                print(f"{scenario}/{op}: rsy is {speedup:.2f}x FASTER")
             else:
-                print(f"{scenario}/{op}: sy is {1 / speedup:.2f}x SLOWER")
+                print(f"{scenario}/{op}: rsy is {1 / speedup:.2f}x SLOWER")
 
 
 # ============================================================================
@@ -914,19 +914,19 @@ def print_results(results: list[BenchmarkResult]):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="sy vs rsync benchmark runner")
+    parser = argparse.ArgumentParser(description="rsy vs rsync benchmark runner")
     parser.add_argument("--quick", action="store_true", help="Run quick smoke test")
     parser.add_argument(
         "--ssh",
         type=str,
-        help="SSH target (user@host); requires sy and python3 on peer",
+        help="SSH target (user@host); requires rsy and python3 on peer",
     )
     parser.add_argument("--iterations", type=int, default=3, help="Iterations per test")
     parser.add_argument(
-        "--sy-binary",
+        "--rsy-binary",
         type=Path,
         default=DEFAULT_SY_BINARY,
-        help="sy executable to measure (default: repository target/release/sy)",
+        help="rsy executable to measure (default: repository target/release/rsy)",
     )
     parser.add_argument("--history", action="store_true", help="Show benchmark history")
     parser.add_argument("--compare", action="store_true", help="Compare last 2 runs")
@@ -950,13 +950,13 @@ def main():
     if args.iterations < 1:
         parser.error("--iterations must be positive")
     try:
-        sy_binary = resolve_sy_binary(args.sy_binary)
-        version_info = get_version_info(sy_binary)
+        rsy_binary = resolve_sy_binary(args.rsy_binary)
+        version_info = get_version_info(rsy_binary)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
-        parser.error(f"cannot inspect sy artifact: {error}")
+        parser.error(f"cannot inspect rsy artifact: {error}")
 
     if shutil.which("rsync") is None:
-        print("Warning: 'rsync' not found - will only benchmark sy")
+        print("Warning: 'rsync' not found - will only benchmark rsy")
 
     # Determine scenarios
     if args.quick:
@@ -974,7 +974,7 @@ def main():
     transport = "ssh" if args.ssh else "local"
 
     print(f"\n{'=' * 80}")
-    print("sy vs rsync Benchmark")
+    print("rsy vs rsync Benchmark")
     print(f"{'=' * 80}")
     print(f"Transport: {transport}")
     print(f"Scenarios: {', '.join(scenarios.keys())}")
@@ -991,9 +991,9 @@ def main():
     print(f"System: {system_info.get('cpu', 'unknown')[:40]}")
     print(f"Git: {git_info['commit']} ({git_info['branch']})")
     print(
-        f"Versions: sy={version_info.get('sy', '?')}, rsync={version_info.get('rsync', '?')}"
+        f"Versions: rsy={version_info.get('rsy', '?')}, rsync={version_info.get('rsync', '?')}"
     )
-    print(f"Artifact: {sy_binary} (sha256 {version_info['sy_binary']['sha256']})")
+    print(f"Artifact: {rsy_binary} (sha256 {version_info['rsy_binary']['sha256']})")
     print("MB/s counts logical file bytes, not measured wire traffic.")
     print()
 
@@ -1006,7 +1006,7 @@ def main():
             results = benchmark_scenario(
                 scenario_name,
                 config,
-                sy_binary=sy_binary,
+                rsy_binary=rsy_binary,
                 transport=transport,
                 ssh_target=args.ssh,
                 iterations=args.iterations,
@@ -1021,7 +1021,7 @@ def main():
             sys.exit(1)
         all_results.extend(results)
 
-    for tool in ("sy", "rsync"):
+    for tool in ("rsy", "rsync"):
         artifact = version_info.get(f"{tool}_binary")
         if artifact and sha256_file(Path(artifact["path"])) != artifact["sha256"]:
             print(f"Benchmark failed: {tool} artifact changed during the run", file=sys.stderr)

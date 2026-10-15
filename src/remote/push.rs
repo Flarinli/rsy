@@ -171,7 +171,7 @@ fn lower_create(
         EntryKind::File => {
             // Staging stays private at 0600. A new committed file therefore
             // always needs an explicit sane final mode even when -p is absent.
-            // Source mode matches sy 0.4's create behavior; -p additionally
+            // Source mode matches rsy 0.4's create behavior; -p additionally
             // controls metadata-only reconciliation of already-equal files.
             let mode = source.unix_mode.ok_or_else(|| {
                 RemotePushLowerError::MissingFileMode(source.path.as_path().to_path_buf())

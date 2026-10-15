@@ -1,5 +1,5 @@
-# Rust ignore template for sy
-# Copy to ~/.config/sy/templates/rust.syignore or use with --ignore-template rust
+# Rust ignore template for rsy
+# Copy to ~/.config/rsy/templates/rust.rsyignore or use with --ignore-template rust
 
 # Build artifacts
 target/

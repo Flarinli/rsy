@@ -21,7 +21,7 @@ impl FakeSsh {
         let ssh = bin.join("ssh");
         std::fs::write(
             &ssh,
-            format!("#!/bin/sh\nprintf '%s' \"$$\" > \"$SY_TEST_PID\"\n{script}\n"),
+            format!("#!/bin/sh\nprintf '%s' \"$$\" > \"$RSY_TEST_PID\"\n{script}\n"),
         )
         .unwrap();
         std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o700)).unwrap();
@@ -49,15 +49,15 @@ impl FakeSsh {
         };
         let mut source = source;
         source.push("/");
-        let mut command = Command::new(env!("CARGO_BIN_EXE_sy"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_rsy"));
         command
             .args([source, destination])
             .args(flags)
             .args(["--quiet", "--no-hooks"])
             .env("PATH", &self.path)
-            .env("SY_TEST_AGENT", env!("CARGO_BIN_EXE_sy"))
-            .env("SY_TEST_PID", self.root.path().join("pid"))
-            .env("SY_TEST_COMPLETED", self.root.path().join("completed"))
+            .env("RSY_TEST_AGENT", env!("CARGO_BIN_EXE_rsy"))
+            .env("RSY_TEST_PID", self.root.path().join("pid"))
+            .env("RSY_TEST_COMPLETED", self.root.path().join("completed"))
             .kill_on_drop(true);
         tokio::time::timeout(Duration::from_secs(20), command.output())
             .await
@@ -85,7 +85,7 @@ async fn completed_push_and_pull_require_clean_ssh_exit() {
     for pull in [false, true] {
         for code in [37, 0] {
             let fake = FakeSsh::new(&format!(
-                "\"$SY_TEST_AGENT\" __serve || exit 91\nprintf completed > \"$SY_TEST_COMPLETED\"\nexit {code}"
+                "\"$RSY_TEST_AGENT\" __serve || exit 91\nprintf completed > \"$RSY_TEST_COMPLETED\"\nexit {code}"
             ));
             let source = fake.root.path().join("source");
             let destination = fake.root.path().join("destination");
@@ -119,7 +119,7 @@ async fn completed_push_and_pull_require_clean_ssh_exit() {
 
 #[tokio::test]
 async fn ordinary_error_reaps_ssh_without_replacing_operation_error() {
-    let fake = FakeSsh::new("exec \"$SY_TEST_AGENT\" __serve");
+    let fake = FakeSsh::new("exec \"$RSY_TEST_AGENT\" __serve");
     let source = fake.root.path().join("source");
     let destination = fake.root.path().join("destination");
     std::fs::create_dir(&source).unwrap();
@@ -145,7 +145,7 @@ async fn ordinary_error_reaps_ssh_without_replacing_operation_error() {
 
 #[tokio::test]
 async fn completed_responses_do_not_allow_forever_hanging_ssh() {
-    let fake = FakeSsh::new("\"$SY_TEST_AGENT\" __serve || exit 91\nprintf completed > \"$SY_TEST_COMPLETED\"\nexec /bin/sleep 60");
+    let fake = FakeSsh::new("\"$RSY_TEST_AGENT\" __serve || exit 91\nprintf completed > \"$RSY_TEST_COMPLETED\"\nexec /bin/sleep 60");
     let source = fake.root.path().join("source");
     let destination = fake.root.path().join("destination");
     std::fs::create_dir(&source).unwrap();

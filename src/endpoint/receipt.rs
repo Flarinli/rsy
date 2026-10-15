@@ -1,7 +1,7 @@
 //! Endpoint publication and verified-existing-destination receipts.
 use crate::endpoint::io::VerificationStatus;
 use crate::error::{Result, SyncError};
-use sy::engine::domain::{Entry, EntryIdentity, RelativePath};
+use rsy::engine::domain::{Entry, EntryIdentity, EntryKind, RelativePath};
 
 /// A completed transaction bound to independent source/destination addresses.
 /// Regular files carry the original staging inode's finalized publication proof.
@@ -11,7 +11,7 @@ pub struct PublishedDestinationReceipt {
     destination_path: RelativePath,
     source_identity: Option<EntryIdentity>,
     verification: VerificationStatus,
-    publication: sy::rooted_fs::PublishedEntryProof,
+    publication: rsy::rooted_fs::PublishedEntryProof,
 }
 
 impl PublishedDestinationReceipt {
@@ -20,7 +20,7 @@ impl PublishedDestinationReceipt {
         destination_path: RelativePath,
         source_identity: Option<EntryIdentity>,
         verification: &VerificationStatus,
-        publication: sy::rooted_fs::PublishedFileProof,
+        publication: rsy::rooted_fs::PublishedFileProof,
     ) -> Self {
         Self {
             source_path,
@@ -35,7 +35,7 @@ impl PublishedDestinationReceipt {
         source_path: RelativePath,
         destination_path: RelativePath,
         source_identity: Option<EntryIdentity>,
-        publication: sy::rooted_fs::PublishedEntryProof,
+        publication: rsy::rooted_fs::PublishedEntryProof,
     ) -> Self {
         Self {
             source_path,
@@ -50,7 +50,7 @@ impl PublishedDestinationReceipt {
         source_path: RelativePath,
         destination_path: RelativePath,
         source_identity: Option<EntryIdentity>,
-        publication: sy::rooted_fs::PublishedEntryProof,
+        publication: rsy::rooted_fs::PublishedEntryProof,
     ) -> Self {
         Self::for_symlink(source_path, destination_path, source_identity, publication)
     }
@@ -68,7 +68,7 @@ impl PublishedDestinationReceipt {
         !matches!(self.verification, VerificationStatus::Failed { .. })
     }
 
-    pub(crate) fn publication(&self) -> Result<&sy::rooted_fs::PublishedEntryProof> {
+    pub(crate) fn publication(&self) -> Result<&rsy::rooted_fs::PublishedEntryProof> {
         let proof = &self.publication;
         if proof.path != self.destination_path {
             return Err(SyncError::Config(
@@ -80,7 +80,7 @@ impl PublishedDestinationReceipt {
 
     pub(crate) fn revalidate_destination_blocking(
         &self,
-        rooted: &sy::rooted_fs::RootedFs,
+        rooted: &rsy::rooted_fs::RootedFs,
     ) -> Result<()> {
         self.publication()?
             .revalidate_blocking(rooted)
@@ -103,6 +103,15 @@ impl PublishedDestinationReceipt {
         if proof.kind != source.kind {
             return Err(SyncError::Config(
                 "publication proof entry kind mismatch".into(),
+            ));
+        }
+        // Unlinking the only other copy needs strong byte parity; an
+        // unverified native copy is not proof the destination bytes are right.
+        if source.kind == EntryKind::File
+            && !matches!(self.verification, VerificationStatus::Verified)
+        {
+            return Err(SyncError::Config(
+                "source removal requires verified destination content".into(),
             ));
         }
         Ok(())
@@ -149,7 +158,7 @@ impl VerifiedExistingDestinationReceipt {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sy::engine::domain::Timestamp;
+    use rsy::engine::domain::Timestamp;
 
     #[test]
     fn native_and_verified_publications_bind_both_addresses_and_source_identity() {
@@ -159,19 +168,24 @@ mod tests {
             Timestamp::UNIX_EPOCH,
         );
         source.identity = Some(EntryIdentity::from_bytes([1; 32]));
-        let proof = sy::rooted_fs::PublishedFileProof {
+        let proof = rsy::rooted_fs::PublishedFileProof {
             path: RelativePath::new("renamed").unwrap(),
             identity: EntryIdentity::from_bytes([2; 32]),
         };
-        for verification in [
-            VerificationStatus::Verified,
-            VerificationStatus::NotRequested,
-        ] {
+        let unverified = PublishedDestinationReceipt::for_file(
+            source.path.clone(),
+            proof.path.clone(),
+            source.identity,
+            &VerificationStatus::NotRequested,
+            proof.clone(),
+        );
+        assert!(unverified.validate_source_removal(&source).is_err());
+        {
             let receipt = PublishedDestinationReceipt::for_file(
                 source.path.clone(),
                 proof.path.clone(),
                 source.identity,
-                &verification,
+                &VerificationStatus::Verified,
                 proof.clone(),
             );
             assert!(receipt.validate_source_removal(&source).is_ok());

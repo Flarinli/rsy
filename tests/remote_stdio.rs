@@ -1,7 +1,7 @@
 //! Regression tests for the v3 stdio transport boundary.
 //!
 //! In-memory router/protocol tests use `tokio::io::duplex`, an unbuffered
-//! pipe. Real `sy __serve` sessions instead write to process stdio, where
+//! pipe. Real `rsy __serve` sessions instead write to process stdio, where
 //! `tokio::io::stdout()` wraps `std::io::Stdout` — a LineWriter that holds
 //! newlineless binary frames indefinitely. The router must flush every frame
 //! it reports as written, or a scan response (whose Entry payloads contain
@@ -14,15 +14,15 @@ use std::time::Duration;
 use futures::StreamExt;
 use tokio::process::Command;
 
-use sy::engine::scan::ScanRequest;
-use sy::protocol::Operation;
-use sy::remote::runtime::ClientRemoteSession;
+use rsy::engine::scan::ScanRequest;
+use rsy::protocol::Operation;
+use rsy::remote::runtime::ClientRemoteSession;
 
 fn sy_bin() -> String {
-    env!("CARGO_BIN_EXE_sy").to_string()
+    env!("CARGO_BIN_EXE_rsy").to_string()
 }
 
-/// One scan over a spawned `sy __serve` child's real stdio must terminate.
+/// One scan over a spawned `rsy __serve` child's real stdio must terminate.
 ///
 /// The entry and directory names deliberately contain no `\n` bytes, and
 /// EntryEnd carries none at all, so without a per-frame flush the scan
@@ -96,7 +96,7 @@ async fn stdio_scan_completes_over_line_buffered_pipe() {
 }
 
 /// After a completed session, the client drops its transport handles (the
-/// usual way an SSH client ends a push: the `sy` process closes stdin). The
+/// usual way an SSH client ends a push: the `rsy` process closes stdin). The
 /// agent must observe clean EOF at a frame boundary, finish remaining
 /// acknowledgements, and exit 0 — EOF is a peer hangup, not an I/O error.
 ///

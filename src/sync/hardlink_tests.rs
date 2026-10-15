@@ -282,21 +282,21 @@ use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
 pub(super) async fn remote_session(
-    operation: sy::protocol::Operation,
+    operation: rsy::protocol::Operation,
     root: &std::path::Path,
 ) -> (
-    sy::remote::runtime::ClientRemoteSession,
-    tokio::task::JoinHandle<sy::remote::serve::Result<()>>,
+    rsy::remote::runtime::ClientRemoteSession,
+    tokio::task::JoinHandle<rsy::remote::serve::Result<()>>,
 ) {
     let (client, server) = tokio::io::duplex(64 * 1024);
     let (reader, writer) = tokio::io::split(server);
-    let server = tokio::spawn(sy::remote::serve::serve_transport(
+    let server = tokio::spawn(rsy::remote::serve::serve_transport(
         reader,
         writer,
         Default::default(),
     ));
     let (reader, writer) = tokio::io::split(client);
-    let client = sy::remote::runtime::ClientRemoteSession::connect(
+    let client = rsy::remote::runtime::ClientRemoteSession::connect(
         reader,
         writer,
         operation,
@@ -309,16 +309,16 @@ pub(super) async fn remote_session(
 }
 
 pub(super) async fn finish_session(
-    client: sy::remote::runtime::ClientRemoteSession,
-    server: tokio::task::JoinHandle<sy::remote::serve::Result<()>>,
+    client: rsy::remote::runtime::ClientRemoteSession,
+    server: tokio::task::JoinHandle<rsy::remote::serve::Result<()>>,
 ) {
     drop(client);
     let result = server.await.unwrap();
     if let Err(error) = result {
         assert!(
-            matches!(&error, sy::remote::serve::ServeError::Session(
-            sy::remote::runtime::RemoteSessionError::Router(error)
-        ) if matches!(error.as_ref(), sy::remote::router::RouterError::TransportEof)),
+            matches!(&error, rsy::remote::serve::ServeError::Session(
+            rsy::remote::runtime::RemoteSessionError::Router(error)
+        ) if matches!(error.as_ref(), rsy::remote::router::RouterError::TransportEof)),
             "{error:?}"
         );
     }

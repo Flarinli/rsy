@@ -975,7 +975,7 @@ mod tests {
                 std::fs::write(root.path().join(name), b"x").unwrap();
             }
 
-            // Walker with sy's exact scan_worker configuration, except
+            // Walker with rsy's exact scan_worker configuration, except
             // global excludes: a machine-dependent global file would make
             // parity machine-specific. The scope mirrors this by construction
             // only when the test environment has no global excludes; the

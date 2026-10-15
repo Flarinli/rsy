@@ -12,11 +12,11 @@ use crate::endpoint::io::{
 use crate::endpoint::receipt::PublishedDestinationReceipt;
 use crate::endpoint::{Endpoint, FileMetadata};
 use crate::error::{Result, SyncError};
+use rsy::engine::domain::{EntryIdentity, RelativePath, Timestamp};
 use std::future::Future;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use sy::engine::domain::{EntryIdentity, RelativePath, Timestamp};
 
 const TRANSFER_BUFFER_SIZE: usize = 1024 * 1024;
 
@@ -156,7 +156,7 @@ fn verify_open_source_identity(
     let metadata = file.metadata()?;
     let actual = crate::endpoint::local_identity::metadata_identity(
         &metadata,
-        sy::engine::domain::EntryKind::File,
+        rsy::engine::domain::EntryKind::File,
     );
     if actual != Some(expected) {
         return Err(SyncError::SourceChanged {
@@ -184,7 +184,7 @@ fn verify_open_destination_identity(
     let metadata = file.metadata()?;
     let actual = crate::endpoint::local_identity::metadata_identity(
         &metadata,
-        sy::engine::domain::EntryKind::File,
+        rsy::engine::domain::EntryKind::File,
     );
     if actual != Some(expected) {
         return Err(SyncError::DestinationChanged {
@@ -206,7 +206,7 @@ pub struct TransferResult {
 struct NativeTransferResult {
     bytes_written: u64,
     verification: VerificationStatus,
-    publication: sy::rooted_fs::PublishedFileProof,
+    publication: rsy::rooted_fs::PublishedFileProof,
 }
 
 struct NativeStagedCopyPolicy {
@@ -917,7 +917,7 @@ async fn reflink_patch(
         {
             Ok(None)
         } else {
-            sy::transfer::ratio::estimate_change_ratio_files(
+            rsy::transfer::ratio::estimate_change_ratio_files(
                 &mut source_file,
                 &mut destination_basis,
                 TRANSFER_BUFFER_SIZE,
@@ -1213,9 +1213,9 @@ mod tests {
     use super::*;
     use crate::endpoint::local::LocalEndpoint;
     use crate::endpoint::local_identity::metadata_identity;
+    use rsy::engine::domain::EntryKind;
     use std::os::unix::fs::PermissionsExt;
     use std::sync::Arc;
-    use sy::engine::domain::EntryKind;
 
     const NAME: &str = "file";
 

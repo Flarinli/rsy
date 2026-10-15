@@ -232,7 +232,7 @@ async fn transient_destination_kind_cannot_turn_absent_publication_into_exchange
 
 #[test]
 fn failed_staging_descriptor_duplication_does_not_authorize_cleanup() {
-    const CHILD: &str = "SY_STAGING_DUPLICATION_FAILURE_CHILD";
+    const CHILD: &str = "RSY_STAGING_DUPLICATION_FAILURE_CHILD";
     if std::env::var_os(CHILD).is_none() {
         let output = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
@@ -547,7 +547,7 @@ async fn hardlink_publication_checks_private_name_and_retains_foreign_substituti
                 entry
                     .file_name()
                     .to_string_lossy()
-                    .starts_with(".sy-stage-")
+                    .starts_with(".rsy-stage-")
                     .then(|| entry.path())
             })
             .ok_or_else(|| std::io::Error::other("missing private staging"))?;

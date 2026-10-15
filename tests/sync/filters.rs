@@ -7,7 +7,7 @@ use std::process::Command;
 use tempfile::TempDir;
 
 fn sy_bin() -> String {
-    env!("CARGO_BIN_EXE_sy").to_string()
+    env!("CARGO_BIN_EXE_rsy").to_string()
 }
 
 fn setup_test_dir() -> (TempDir, TempDir) {
@@ -390,7 +390,7 @@ fn test_min_size_filters_small_files() {
 
     assert!(
         output.status.success(),
-        "sy --min-size failed: {}",
+        "rsy --min-size failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -470,7 +470,7 @@ fn test_max_size_filters_large_files() {
 
     assert!(
         output.status.success(),
-        "sy --max-size failed: {}",
+        "rsy --max-size failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -553,7 +553,7 @@ fn test_min_max_size_combined() {
 
     assert!(
         output.status.success(),
-        "sy --min-size --max-size failed: {}",
+        "rsy --min-size --max-size failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -644,7 +644,7 @@ fn test_size_human_readable_formats() {
 
         assert!(
             output.status.success(),
-            "sy --min-size {} failed: {}",
+            "rsy --min-size {} failed: {}",
             size_str,
             String::from_utf8_lossy(&output.stderr)
         );

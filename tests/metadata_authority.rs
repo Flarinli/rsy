@@ -1,25 +1,25 @@
 #![cfg(unix)]
 
 use futures::TryStreamExt;
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use std::path::Path;
-use sy::endpoint::local_entry_scan::local_entry_stream;
-use sy::engine::controller::SyncPlanExecutor;
-use sy::engine::domain::{Entry, SyncOp};
-use sy::engine::finalize_journal::FinalizeMetadata;
-use sy::engine::planner::{
+use rsy::endpoint::local_entry_scan::local_entry_stream;
+use rsy::engine::controller::SyncPlanExecutor;
+use rsy::engine::domain::{Entry, SyncOp};
+use rsy::engine::finalize_journal::FinalizeMetadata;
+use rsy::engine::planner::{
     plan_entry, ComparisonMode, ComparisonPolicy, ExecutionPolicy, PlanDecision,
 };
-use sy::engine::scan::ScanRequest;
-use sy::engine::scheduler::{ResourceBudget, Scheduler};
-use sy::protocol::Operation;
-use sy::remote::local_executor::{lower_local_op, LocalSyncExecutor};
-use sy::remote::pull::RemotePullExecutor;
-use sy::remote::pull_lower::lower_pull_op;
-use sy::remote::push::{lower_sync_op, RemotePushExecutor};
-use sy::remote::router::RouterConfig;
-use sy::remote::runtime::ClientRemoteSession;
-use sy::transfer::delta::BasisIndexLimits;
+use rsy::engine::scan::ScanRequest;
+use rsy::engine::scheduler::{ResourceBudget, Scheduler};
+use rsy::protocol::Operation;
+use rsy::remote::local_executor::{lower_local_op, LocalSyncExecutor};
+use rsy::remote::pull::RemotePullExecutor;
+use rsy::remote::pull_lower::lower_pull_op;
+use rsy::remote::push::{lower_sync_op, RemotePushExecutor};
+use rsy::remote::router::RouterConfig;
+use rsy::remote::runtime::ClientRemoteSession;
+use rsy::transfer::delta::BasisIndexLimits;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::path::Path;
 
 #[derive(Clone, Copy, Debug)]
 enum Direction {
@@ -49,7 +49,7 @@ fn seed(path: &Path, mode: u32, seconds: i64) {
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).unwrap();
 }
 
-async fn file_entry(stream: sy::engine::reconcile::EntryStream) -> Entry {
+async fn file_entry(stream: rsy::engine::reconcile::EntryStream) -> Entry {
     stream
         .try_collect::<Vec<_>>()
         .await
@@ -88,10 +88,10 @@ fn substitute(root: &Path, outside: &Path, race: Substitution) {
 /// catch path-based setters even when the leaf itself is still a regular file.
 #[test]
 fn cross_platform_symlink_modes_are_ignored_without_losing_timestamp_preservation() {
-    use sy::engine::domain::{EntryIdentity, RelativePath, Timestamp};
-    use sy::remote::local_executor::LocalSyncAction;
-    use sy::remote::pull::RemotePullAction;
-    use sy::remote::push::RemotePushAction;
+    use rsy::engine::domain::{EntryIdentity, RelativePath, Timestamp};
+    use rsy::remote::local_executor::LocalSyncAction;
+    use rsy::remote::pull::RemotePullAction;
+    use rsy::remote::push::RemotePushAction;
 
     let path = RelativePath::new("link").unwrap();
     let mut source = Entry::symlink(path.clone(), "target".into(), Timestamp::UNIX_EPOCH);
@@ -163,7 +163,7 @@ async fn metadata_only_mutations_require_both_scanned_observations_in_all_direct
             seed(&outside.path().join("file"), 0o640, 1_700_000_000);
             let outside_before = metadata(&outside.path().join("file"));
             let authority =
-                sy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
+                rsy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
                     .await
                     .unwrap();
             let mut request = ScanRequest::default();
@@ -185,7 +185,7 @@ async fn metadata_only_mutations_require_both_scanned_observations_in_all_direct
             let decision = plan_entry(
                 source_entry,
                 Some(destination_entry),
-                sy::engine::domain::RelativePath::new("dir/file").unwrap(),
+                rsy::engine::domain::RelativePath::new("dir/file").unwrap(),
                 ComparisonPolicy {
                     mode: ComparisonMode::SizeOnly,
                     preserve_permissions: true,
@@ -205,7 +205,7 @@ async fn metadata_only_mutations_require_both_scanned_observations_in_all_direct
                 Direction::Local => {
                     let executor = LocalSyncExecutor::new(
                         authority,
-                        sy::endpoint::local::LocalEndpoint::new(destination.path().to_path_buf()),
+                        rsy::endpoint::local::LocalEndpoint::new(destination.path().to_path_buf()),
                         scheduler,
                     );
                     let work = lower_local_op(op, policy).unwrap().unwrap();
@@ -220,7 +220,7 @@ async fn metadata_only_mutations_require_both_scanned_observations_in_all_direct
                     let (client_io, server_io) = tokio::io::duplex(64 * 1024);
                     let (client_reader, client_writer) = tokio::io::split(client_io);
                     let (server_reader, server_writer) = tokio::io::split(server_io);
-                    let server = tokio::spawn(sy::remote::serve::serve_transport(
+                    let server = tokio::spawn(rsy::remote::serve::serve_transport(
                         server_reader,
                         server_writer,
                         RouterConfig::default(),
@@ -246,12 +246,12 @@ async fn metadata_only_mutations_require_both_scanned_observations_in_all_direct
                             .await
                             .unwrap();
                         namespace
-                            .qualify(sy::engine::namespace::NamespaceParent::Root)
+                            .qualify(rsy::engine::namespace::NamespaceParent::Root)
                             .await
                             .unwrap();
                         namespace
-                            .qualify(sy::engine::namespace::NamespaceParent::Directory(
-                                sy::engine::domain::RelativePath::new("dir").unwrap(),
+                            .qualify(rsy::engine::namespace::NamespaceParent::Directory(
+                                rsy::engine::domain::RelativePath::new("dir").unwrap(),
                             ))
                             .await
                             .unwrap();
@@ -337,9 +337,9 @@ async fn metadata_only_mutations_require_both_scanned_observations_in_all_direct
 #[test]
 fn metadata_lowerers_reject_missing_observations_instead_of_statting_later() {
     let mut source = Entry::file(
-        sy::engine::domain::RelativePath::new("file").unwrap(),
+        rsy::engine::domain::RelativePath::new("file").unwrap(),
         1,
-        sy::engine::domain::Timestamp::new(1, 0).unwrap(),
+        rsy::engine::domain::Timestamp::new(1, 0).unwrap(),
     );
     source.unix_mode = Some(0o600);
     let mut destination = source.clone();
@@ -366,12 +366,12 @@ async fn local_directory_creation_and_finalize_refuse_swapped_ancestors() {
     std::fs::create_dir(destination.path().join("dir")).unwrap();
     std::fs::create_dir(outside.path().join("child")).unwrap();
     let before = metadata(&outside.path().join("child"));
-    let authority = sy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
+    let authority = rsy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
         .await
         .unwrap();
     let executor = LocalSyncExecutor::new(
         authority.clone(),
-        sy::endpoint::local::LocalEndpoint::new(destination.path().to_path_buf()),
+        rsy::endpoint::local::LocalEndpoint::new(destination.path().to_path_buf()),
         Scheduler::new(ResourceBudget::default()).unwrap(),
     );
     std::fs::rename(
@@ -404,15 +404,15 @@ async fn local_directory_creation_and_finalize_refuse_swapped_ancestors() {
     assert!(SyncPlanExecutor::execute_finalize(
         &executor,
         FinalizeMetadata {
-            path: sy::engine::domain::RelativePath::new("dir/child").unwrap(),
-            kind: sy::engine::domain::EntryKind::Directory,
-            source_identity: sy::engine::domain::EntryIdentity::from_bytes([1; 32]),
-            target: sy::engine::finalize_journal::DirectoryTarget::Observed(
-                sy::engine::domain::EntryIdentity::from_bytes([2; 32])
+            path: rsy::engine::domain::RelativePath::new("dir/child").unwrap(),
+            kind: rsy::engine::domain::EntryKind::Directory,
+            source_identity: rsy::engine::domain::EntryIdentity::from_bytes([1; 32]),
+            target: rsy::engine::finalize_journal::DirectoryTarget::Observed(
+                rsy::engine::domain::EntryIdentity::from_bytes([2; 32])
             ),
             preserve_source: false,
             unix_mode: Some(0o600),
-            modified: Some(sy::engine::domain::Timestamp::new(1, 0).unwrap()),
+            modified: Some(rsy::engine::domain::Timestamp::new(1, 0).unwrap()),
         }
     )
     .await

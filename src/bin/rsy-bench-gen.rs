@@ -8,8 +8,8 @@ use usage::Cli;
 
 #[derive(Cli, Debug)]
 #[usage(
-    bin = "sy-bench-gen",
-    about = "Generates massive file trees for sy benchmarking",
+    bin = "rsy-bench-gen",
+    about = "Generates massive file trees for rsy benchmarking",
     unknown_flags = "error",
     args_override_self = false
 )]

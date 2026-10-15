@@ -4,9 +4,9 @@
 # dependencies = ["rich"]
 # ///
 """
-Cross-platform test suite for sy.
+Cross-platform test suite for rsy.
 
-Tests sy across macOS and Fedora, covering:
+Tests rsy across macOS and Fedora, covering:
 - Local unit/integration tests
 - Large-scale tests (10k+ files)
 - SSH transfers between platforms
@@ -46,10 +46,10 @@ except ImportError:
 
 FEDORA_HOST = "fedora"
 FEDORA_USER = "nick"
-FEDORA_REPO = "~/github/nijaru/sy"
+FEDORA_REPO = "~/github/Flarinli/rsy"
 
 PROJECT_ROOT = Path(__file__).parent.parent
-SY_BIN = PROJECT_ROOT / "target/release/sy"
+RSY_BIN = PROJECT_ROOT / "target/release/rsy"
 
 
 # ============================================================================
@@ -214,14 +214,14 @@ def check_ssh_connection(runner: TestRunner) -> bool:
 
 
 def build_local(runner: TestRunner) -> bool:
-    """Build sy locally."""
+    """Build rsy locally."""
     log_header("Building locally")
 
-    return runner.run("Build sy", ["cargo", "build", "--release", "--bin", "sy"])
+    return runner.run("Build rsy", ["cargo", "build", "--release", "--bin", "rsy"])
 
 
 def build_fedora(runner: TestRunner) -> bool:
-    """Build sy on Fedora."""
+    """Build rsy on Fedora."""
     log_header("Building on Fedora")
 
     branch = subprocess.run(
@@ -239,18 +239,18 @@ def build_fedora(runner: TestRunner) -> bool:
     if not ok:
         return False
 
-    # Build sy
+    # Build rsy
     ok = runner.run_ssh(
-        "Build sy (Fedora)",
-        f"cd {FEDORA_REPO} && cargo build --release --bin sy"
+        "Build rsy (Fedora)",
+        f"cd {FEDORA_REPO} && cargo build --release --bin rsy"
     )
     if not ok:
         return False
 
     # Install to PATH
     ok = runner.run_ssh(
-        "Install sy",
-        f"cd {FEDORA_REPO} && cargo install --path . --bin sy --force"
+        "Install rsy",
+        f"cd {FEDORA_REPO} && cargo install --path . --bin rsy --force"
     )
     return ok
 
@@ -311,13 +311,13 @@ def test_cross_filesystem(runner: TestRunner) -> bool:
         (local_src / "file with spaces.txt").write_text("spaces")
         (local_src / "special!@#.txt").write_text("special")
 
-        remote_dest = "/tmp/sy-cross-fs-test"
+        remote_dest = "/tmp/rsy-cross-fs-test"
         local_roundtrip = Path(tmpdir) / "roundtrip"
 
         # Sync local → Fedora
         ok = runner.run(
             "Sync macOS → Fedora",
-            [str(SY_BIN), str(local_src) + "/", f"{FEDORA_USER}@{FEDORA_HOST}:{remote_dest}"],
+            [str(RSY_BIN), str(local_src) + "/", f"{FEDORA_USER}@{FEDORA_HOST}:{remote_dest}"],
             timeout=60
         )
         if not ok:
@@ -326,7 +326,7 @@ def test_cross_filesystem(runner: TestRunner) -> bool:
         # Sync Fedora → local (roundtrip)
         ok = runner.run(
             "Sync Fedora → macOS",
-            [str(SY_BIN), f"{FEDORA_USER}@{FEDORA_HOST}:{remote_dest}/", str(local_roundtrip)],
+            [str(RSY_BIN), f"{FEDORA_USER}@{FEDORA_HOST}:{remote_dest}/", str(local_roundtrip)],
             timeout=60
         )
         if not ok:
@@ -375,7 +375,7 @@ def test_real_world_scenarios(runner: TestRunner) -> bool:
 
         ok = runner.run(
             "Git repo (include all)",
-            [str(SY_BIN), str(src) + "/", str(dst)],
+            [str(RSY_BIN), str(src) + "/", str(dst)],
             timeout=30
         )
 
@@ -393,7 +393,7 @@ def test_real_world_scenarios(runner: TestRunner) -> bool:
 
         ok = runner.run(
             "Git repo (--gitignore --exclude-vcs)",
-            [str(SY_BIN), str(src) + "/", str(dst2), "--gitignore", "--exclude-vcs"],
+            [str(RSY_BIN), str(src) + "/", str(dst2), "--gitignore", "--exclude-vcs"],
             timeout=30
         ) and ok
 
@@ -411,7 +411,7 @@ def test_real_world_scenarios(runner: TestRunner) -> bool:
         log_info("Scenario: Idempotent sync")
 
         result = subprocess.run(
-            [str(SY_BIN), str(src) + "/", str(dst), "--exclude-vcs"],
+            [str(RSY_BIN), str(src) + "/", str(dst), "--exclude-vcs"],
             capture_output=True, text=True, cwd=PROJECT_ROOT
         )
         if "Files skipped:" not in result.stdout:
@@ -465,7 +465,7 @@ def test_cli_flag_combinations(runner: TestRunner) -> bool:
 
             ok = runner.run(
                 f"CLI: {name}",
-                [str(SY_BIN), str(src) + "/", str(dst_path)] + flags,
+                [str(RSY_BIN), str(src) + "/", str(dst_path)] + flags,
                 timeout=30
             )
             all_ok = all_ok and ok
@@ -478,7 +478,7 @@ def test_cli_flag_combinations(runner: TestRunner) -> bool:
 # ============================================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="Cross-platform test suite for sy")
+    parser = argparse.ArgumentParser(description="Cross-platform test suite for rsy")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     parser.add_argument("-l", "--large", action="store_true", help="Include large/slow tests")
     parser.add_argument("-s", "--skip-build", action="store_true", help="Skip cargo builds")
@@ -488,7 +488,7 @@ def main():
 
     runner = TestRunner(verbose=args.verbose)
 
-    log_header("sy Cross-Platform Test Suite")
+    log_header("rsy Cross-Platform Test Suite")
     if args.large:
         log_info("Including large tests")
     if args.skip_build:

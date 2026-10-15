@@ -259,7 +259,7 @@ async fn dangling_links_and_cycles_are_scan_errors_not_silent_pruning() {
 
 #[tokio::test]
 async fn global_excludes_precede_explicit_and_are_cwd_anchored() {
-    if std::env::var_os("SY_TEST_IGNORE_HOME").is_some() {
+    if std::env::var_os("RSY_TEST_IGNORE_HOME").is_some() {
         let root = tempfile::TempDir::new().unwrap();
         file(root.path(), ".gitignore", b"!global-drop\n/root-only\n");
         std::fs::create_dir_all(root.path().join("sub/.git")).unwrap();
@@ -296,7 +296,7 @@ async fn global_excludes_precede_explicit_and_are_cwd_anchored() {
     );
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .args(["--exact", "endpoint::local_entry_scan::differential::global_excludes_precede_explicit_and_are_cwd_anchored"])
-        .env("HOME", home.path()).env("SY_TEST_IGNORE_HOME", home.path()).output().unwrap();
+        .env("HOME", home.path()).env("RSY_TEST_IGNORE_HOME", home.path()).output().unwrap();
     assert!(
         output.status.success(),
         "{}{}",

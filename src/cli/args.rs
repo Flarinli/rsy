@@ -7,33 +7,36 @@ use std::str::FromStr;
 /// here so custom UTF-8 conversions never touch filesystem path bytes.
 #[derive(usage::Cli, Debug)]
 #[usage(
-    bin = "sy",
+    bin = "rsy",
     version,
     about = "Modern file synchronization tool",
     completion,
     unknown_flags = "error",
     args_override_self = false
 )]
-#[usage(after_help = "For more information: https://github.com/nijaru/sy")]
-#[usage(example("sy /source /destination", header = "Basic sync"))]
+#[usage(after_help = "For more information: https://github.com/Flarinli/rsy")]
+#[usage(example("rsy /source /destination", header = "Basic sync"))]
 #[usage(example(
-    "sy /source /destination --dry-run",
+    "rsy /source /destination --dry-run",
     header = "Preview changes without applying"
 ))]
 #[usage(example(
-    "sy /source /destination --delete",
+    "rsy /source /destination --delete",
     header = "Mirror mode (delete extra destination files)"
 ))]
 #[usage(example(
-    "sy /source /destination -j 20",
+    "rsy /source /destination -j 20",
     header = "Parallel transfers (20 workers)"
 ))]
-#[usage(example("sy /path/to/file.txt /dest/file.txt", header = "Sync single file"))]
-#[usage(example("sy /local user@host:/remote", header = "Remote sync (SSH push)"))]
-#[usage(example("sy user@host:/remote /local", header = "Remote sync (SSH pull)"))]
-#[usage(example("sy /source /destination --quiet", header = "Quiet mode (only errors)"))]
+#[usage(example("rsy /path/to/file.txt /dest/file.txt", header = "Sync single file"))]
+#[usage(example("rsy /local user@host:/remote", header = "Remote sync (SSH push)"))]
+#[usage(example("rsy user@host:/remote /local", header = "Remote sync (SSH pull)"))]
 #[usage(example(
-    "sy /source /destination --verify=after",
+    "rsy /source /destination --quiet",
+    header = "Quiet mode (only errors)"
+))]
+#[usage(example(
+    "rsy /source /destination --verify=after",
     header = "Verify staged integrity before commit"
 ))]
 pub(super) struct ParsedArguments {

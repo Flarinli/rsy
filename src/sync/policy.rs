@@ -13,25 +13,25 @@ use crate::sync::config::{DeleteMode, SyncConfig};
 use crate::sync::scanner::ScanOptions;
 use crate::sync::stats::SyncStats;
 use futures::future;
-use sy::engine::compression::CompressionPolicy;
-use sy::engine::controller::{ControllerError, PreviewOp, SyncPreview, SyncSummary};
-use sy::engine::delete_plan::{DeletePlanError, DeletePolicy};
-use sy::engine::domain::{Entry, EntryKind, RelativePath, SyncOp};
-use sy::engine::namespace::NamespacePreflightError;
-use sy::engine::planner::{ComparisonMode, ComparisonPolicy};
-use sy::engine::reconcile::EntryStream;
-use sy::engine::scan::{EntryMetadataRequest, ScanRequest};
+use rsy::engine::compression::CompressionPolicy;
+use rsy::engine::controller::{ControllerError, PreviewOp, SyncPreview, SyncSummary};
+use rsy::engine::delete_plan::{DeletePlanError, DeletePolicy};
+use rsy::engine::domain::{Entry, EntryKind, RelativePath, SyncOp};
+use rsy::engine::namespace::NamespacePreflightError;
+use rsy::engine::planner::{ComparisonMode, ComparisonPolicy};
+use rsy::engine::reconcile::EntryStream;
+use rsy::engine::scan::{EntryMetadataRequest, ScanRequest};
 
 #[cfg(feature = "ssh")]
 pub(super) fn admit_remote_preservation(
-    remote: &sy::remote::runtime::ClientRemoteHandle,
-    local: &sy::endpoint::Capabilities,
+    remote: &rsy::remote::runtime::ClientRemoteHandle,
+    local: &rsy::endpoint::Capabilities,
     config: &SyncConfig,
 ) -> Result<()> {
     remote
         .admit_preservation(
             local,
-            sy::remote::preservation::PreservationRequest {
+            rsy::remote::preservation::PreservationRequest {
                 xattrs: config.preserve.xattrs,
                 acls: config.preserve.acls,
                 hardlinks: config.preserve.hardlinks,
@@ -42,13 +42,13 @@ pub(super) fn admit_remote_preservation(
 }
 
 pub(crate) fn finish_report(
-    reporter: &sy::sync::output::SyncReporter,
+    reporter: &rsy::sync::output::SyncReporter,
     stats: &SyncStats,
     scan: std::time::Duration,
     transfer: std::time::Duration,
 ) {
     reporter.finish(
-        &sy::sync::output::SummaryCounts {
+        &rsy::sync::output::SummaryCounts {
             files_created: stats.files_created,
             files_updated: stats.files_updated,
             files_skipped: stats.files_skipped,
@@ -58,7 +58,7 @@ pub(crate) fn finish_report(
             files_verified: stats.files_verified as u64,
             verification_failures: stats.verification_failures,
         },
-        sy::sync::output::SyncTimings { scan, transfer },
+        rsy::sync::output::SyncTimings { scan, transfer },
     );
 }
 
@@ -121,7 +121,7 @@ pub(crate) async fn observed_hash(
         .ok_or_else(|| SyncError::Config("endpoint cannot bind an observed source hash".into()))?;
     if !follow {
         let fingerprint =
-            sy::endpoint::existing::fingerprint(rooted.clone(), entry.clone(), Default::default())
+            rsy::endpoint::existing::fingerprint(rooted.clone(), entry.clone(), Default::default())
                 .await
                 .map_err(map_io)?;
         // This helper compares local operator operands. Remote fingerprint RPCs
@@ -256,14 +256,14 @@ pub(crate) fn entry_in_vcs_scope(entry: &Entry, include_git_dir: bool) -> bool {
 /// in the reconciliation stream, so their destination counterparts keep
 /// delete protection (selection must never narrow deletion scope).
 pub(crate) fn entry_selected_by_symlink_mode(entry: &Entry, skip_symlinks: bool) -> bool {
-    if skip_symlinks && entry.kind == sy::engine::domain::EntryKind::Symlink {
+    if skip_symlinks && entry.kind == rsy::engine::domain::EntryKind::Symlink {
         return false;
     }
     true
 }
 
 pub(crate) fn entry_not_source_ignored(
-    scope: &std::sync::Arc<std::sync::Mutex<sy::engine::ignore_scope::SourceIgnoreScope>>,
+    scope: &std::sync::Arc<std::sync::Mutex<rsy::engine::ignore_scope::SourceIgnoreScope>>,
     entry: &Entry,
 ) -> bool {
     let Ok(mut scope) = scope.lock() else {
@@ -489,9 +489,9 @@ pub(crate) fn map_io(error: impl Into<Box<dyn std::error::Error + Send + Sync>>)
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rsy::engine::delete_plan::DeleteLimit;
+    use rsy::engine::domain::Timestamp;
     use std::path::PathBuf;
-    use sy::engine::delete_plan::DeleteLimit;
-    use sy::engine::domain::Timestamp;
 
     fn test_config() -> SyncConfig {
         let mut config = SyncConfig::test_default();
@@ -517,8 +517,8 @@ mod tests {
     #[tokio::test]
     async fn observed_hash_keeps_original_source_root_despite_identical_aliases() {
         use futures::StreamExt;
-        use sy::endpoint::source_root::SourceRoot;
-        use sy::rooted_fs::RootedFsError;
+        use rsy::endpoint::source_root::SourceRoot;
+        use rsy::rooted_fs::RootedFsError;
         let parent = tempfile::tempdir().unwrap();
         let original = parent.path().join("source");
         let replacement = parent.path().join("replacement");
@@ -544,8 +544,8 @@ mod tests {
                     cause.downcast_ref::<RootedFsError>(),
                     Some(RootedFsError::RootChanged(_))
                 ) || matches!(
-                    cause.downcast_ref::<sy::endpoint::existing::ExistingDestinationError>(),
-                    Some(sy::endpoint::existing::ExistingDestinationError::Rooted(
+                    cause.downcast_ref::<rsy::endpoint::existing::ExistingDestinationError>(),
+                    Some(rsy::endpoint::existing::ExistingDestinationError::Rooted(
                         RootedFsError::RootChanged(_)
                     ))
                 )

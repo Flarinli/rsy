@@ -1,5 +1,5 @@
-# Node.js ignore template for sy
-# Copy to ~/.config/sy/templates/node.syignore or use with --ignore-template node
+# Node.js ignore template for rsy
+# Copy to ~/.config/rsy/templates/node.rsyignore or use with --ignore-template node
 
 # Dependencies
 node_modules/

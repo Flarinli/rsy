@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Project renamed from `sy` to `rsy`. The crate, binary, remote agent invocation
+  (`rsy __serve`), config directory (`~/.config/rsy/`), ignore files
+  (`.rsyignore`, `templates/*.rsyignore`), hook/test environment variables
+  (`RSY_*`), man page (`man/rsy.1`), and release artifacts all use the new name.
+  Remote hosts need the `rsy` binary on `PATH`.
+
+### Security
+
+- SSH launcher now passes `--` before the host alias. Previously a remote spec
+  such as `user@-oProxyCommand=...:path` reached OpenSSH as an option and could
+  run a local command.
+- SSH launcher always passes `-T`, so a `RequestTTY force` in `ssh_config` can no
+  longer put a pty (and escape processing) on the binary protocol stream.
+- Wire path components that only normalize to a single name (`a/`, `a/.`,
+  `a//`) are rejected instead of being accepted as aliases of `a`.
+
+### Fixed
+
+- Local `--remove-source-files` now verifies destination bytes before unlinking
+  a source file; receipts without verified content no longer authorize removal.
+
+### Removed
+
+- Obsolete ignored `tests/sync/ssh.rs` that targeted the deleted 0.4 SSH pipeline.
+
 ## [0.4.1] - 2026-06-30
 
 ### Changed

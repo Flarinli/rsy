@@ -1,16 +1,16 @@
-//! Delta PULL through real `sy __serve`, the shared preflight/controller, and
+//! Delta PULL through real `rsy __serve`, the shared preflight/controller, and
 //! native local publication. No SSH connection or global configuration.
 #![cfg(unix)]
+use rsy::engine::controller::{preflight_sync, SyncController};
+use rsy::engine::planner::{ComparisonMode, ComparisonPolicy};
+use rsy::engine::scan::{EntryMetadataRequest, ScanRequest};
+use rsy::engine::scheduler::{ResourceBudget, Scheduler};
+use rsy::remote::pull::RemotePullExecutor;
+use rsy::remote::runtime::ClientRemoteSession;
 use std::num::NonZeroUsize;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::process::Stdio;
 use std::time::Duration;
-use sy::engine::controller::{preflight_sync, SyncController};
-use sy::engine::planner::{ComparisonMode, ComparisonPolicy};
-use sy::engine::scan::{EntryMetadataRequest, ScanRequest};
-use sy::engine::scheduler::{ResourceBudget, Scheduler};
-use sy::remote::pull::RemotePullExecutor;
-use sy::remote::runtime::ClientRemoteSession;
 use tokio::process::Command;
 
 fn fixture() -> Vec<u8> {
@@ -50,7 +50,7 @@ async fn routed_delta_pull_reuses_old_blocks_and_preserves_native_metadata() {
         )
         .unwrap();
         let source_before = std::fs::metadata(&source_path).unwrap();
-        let mut child = Command::new(env!("CARGO_BIN_EXE_sy"))
+        let mut child = Command::new(env!("CARGO_BIN_EXE_rsy"))
             .arg("__serve")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -61,7 +61,7 @@ async fn routed_delta_pull_reuses_old_blocks_and_preserves_native_metadata() {
         let client = ClientRemoteSession::connect(
             child.stdout.take().unwrap(),
             child.stdin.take().unwrap(),
-            sy::protocol::Operation::Pull,
+            rsy::protocol::Operation::Pull,
             source.path(),
             Default::default(),
         )
@@ -80,7 +80,7 @@ async fn routed_delta_pull_reuses_old_blocks_and_preserves_native_metadata() {
         )
         .with_xattrs(preserve)
         .with_acls(preserve && cfg!(feature = "acl"))
-        .with_compression(Some(sy::engine::compression::CompressionPolicy::Always));
+        .with_compression(Some(rsy::engine::compression::CompressionPolicy::Always));
         let request = ScanRequest {
             metadata: EntryMetadataRequest {
                 identity: true,
@@ -102,7 +102,7 @@ async fn routed_delta_pull_reuses_old_blocks_and_preserves_native_metadata() {
                 ..Default::default()
             },
             None,
-            sy::engine::namespace::NamespacePreflight::new(namespace.as_ref()),
+            rsy::engine::namespace::NamespacePreflight::new(namespace.as_ref()),
             |_| false,
         )
         .await
@@ -194,7 +194,7 @@ async fn four_concurrent_delta_pulls_progress_with_server_byte_admission() {
         std::fs::write(source.path().join(index.to_string()), &new).unwrap();
         std::fs::write(destination.path().join(index.to_string()), &old).unwrap();
     }
-    let mut child = Command::new(env!("CARGO_BIN_EXE_sy"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rsy"))
         .arg("__serve")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -205,7 +205,7 @@ async fn four_concurrent_delta_pulls_progress_with_server_byte_admission() {
     let client = ClientRemoteSession::connect(
         child.stdout.take().unwrap(),
         child.stdin.take().unwrap(),
-        sy::protocol::Operation::Pull,
+        rsy::protocol::Operation::Pull,
         source.path(),
         Default::default(),
     )
@@ -236,7 +236,7 @@ async fn four_concurrent_delta_pulls_progress_with_server_byte_admission() {
             ..Default::default()
         },
         None,
-        sy::engine::namespace::NamespacePreflight::new(namespace.as_ref()),
+        rsy::engine::namespace::NamespacePreflight::new(namespace.as_ref()),
         |_| false,
     )
     .await
@@ -284,7 +284,7 @@ async fn cli_delta_pull_keeps_sparse_logical_bytes_and_eof_integrity() {
     // This substitutes only the per-process external command. It opens no SSH
     // connection and reads/writes no SSH or global configuration.
     let ssh = bin.join("ssh");
-    std::fs::write(&ssh, "#!/bin/sh\nexec \"$SY_TEST_AGENT\" __serve\n").unwrap();
+    std::fs::write(&ssh, "#!/bin/sh\nexec \"$RSY_TEST_AGENT\" __serve\n").unwrap();
     std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o700)).unwrap();
     for (path, extra) in [(&source, true), (&destination, false)] {
         let mut file = std::fs::File::create(path.join("file")).unwrap();
@@ -304,12 +304,12 @@ async fn cli_delta_pull_keeps_sparse_logical_bytes_and_eof_integrity() {
     paths.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
     let output = tokio::time::timeout(
         Duration::from_secs(30),
-        Command::new(env!("CARGO_BIN_EXE_sy"))
+        Command::new(env!("CARGO_BIN_EXE_rsy"))
             .arg(remote)
             .arg(&destination)
             .args(["--json", "--no-hooks"])
             .env("PATH", std::env::join_paths(paths).unwrap())
-            .env("SY_TEST_AGENT", env!("CARGO_BIN_EXE_sy"))
+            .env("RSY_TEST_AGENT", env!("CARGO_BIN_EXE_rsy"))
             .kill_on_drop(true)
             .output(),
     )

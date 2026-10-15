@@ -1,21 +1,21 @@
 #![cfg(unix)]
 
 use futures::TryStreamExt;
+use rsy::endpoint::local_entry_scan::local_entry_stream;
+use rsy::engine::controller::SyncPlanExecutor;
+use rsy::engine::domain::{ContentComparison, Entry, SyncOp};
+use rsy::engine::planner::ExecutionPolicy;
+use rsy::engine::scan::ScanRequest;
+use rsy::engine::scheduler::{ResourceBudget, Scheduler};
+use rsy::engine::work::WorkResult;
+use rsy::protocol::Operation;
+use rsy::remote::push::RemotePushExecutor;
+use rsy::remote::router::RouterConfig;
+use rsy::remote::runtime::ClientRemoteSession;
+use rsy::transfer::delta::BasisIndexLimits;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use sy::endpoint::local_entry_scan::local_entry_stream;
-use sy::engine::controller::SyncPlanExecutor;
-use sy::engine::domain::{ContentComparison, Entry, SyncOp};
-use sy::engine::planner::ExecutionPolicy;
-use sy::engine::scan::ScanRequest;
-use sy::engine::scheduler::{ResourceBudget, Scheduler};
-use sy::engine::work::WorkResult;
-use sy::protocol::Operation;
-use sy::remote::push::RemotePushExecutor;
-use sy::remote::router::RouterConfig;
-use sy::remote::runtime::ClientRemoteSession;
-use sy::transfer::delta::BasisIndexLimits;
 
-async fn scan_file(entries: sy::engine::reconcile::EntryStream) -> Entry {
+async fn scan_file(entries: rsy::engine::reconcile::EntryStream) -> Entry {
     entries.try_collect::<Vec<_>>().await.unwrap().remove(0)
 }
 
@@ -39,7 +39,7 @@ async fn quick_unchanged_push_preserves_destination_bytes_and_removes_source_onl
         }
         xattr::set(&source_path, "user.sy-observed-push", b"preserved").unwrap();
         xattr::set(&destination_path, "user.sy-stale", b"remove").unwrap();
-        let authority = sy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
+        let authority = rsy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
             .await
             .unwrap();
         let mut request = ScanRequest::default();
@@ -56,7 +56,7 @@ async fn quick_unchanged_push_preserves_destination_bytes_and_removes_source_onl
         let (client_io, server_io) = tokio::io::duplex(64 * 1024);
         let (client_reader, client_writer) = tokio::io::split(client_io);
         let (server_reader, server_writer) = tokio::io::split(server_io);
-        let server = tokio::spawn(sy::remote::serve::serve_transport(
+        let server = tokio::spawn(rsy::remote::serve::serve_transport(
             server_reader,
             server_writer,
             RouterConfig::default(),
@@ -76,7 +76,7 @@ async fn quick_unchanged_push_preserves_destination_bytes_and_removes_source_onl
             .await
             .unwrap();
         namespace
-            .qualify(sy::engine::namespace::NamespaceParent::Root)
+            .qualify(rsy::engine::namespace::NamespaceParent::Root)
             .await
             .unwrap();
         namespace.seal().await.unwrap();
@@ -111,8 +111,8 @@ async fn quick_unchanged_push_preserves_destination_bytes_and_removes_source_onl
         if remove_source && !equal_bytes {
             assert!(matches!(
                 result,
-                Err(sy::remote::push::RemotePushError::Existing(
-                    sy::endpoint::existing::ExistingDestinationError::ContentMismatch(_)
+                Err(rsy::remote::push::RemotePushError::Existing(
+                    rsy::endpoint::existing::ExistingDestinationError::ContentMismatch(_)
                 ))
             ));
         } else {

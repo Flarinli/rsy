@@ -409,7 +409,7 @@ async fn scratch_corruption_poison_is_terminal_before_native_effects() {
 
 #[tokio::test]
 async fn many_parents_use_constant_catalogue_descriptors() {
-    const CHILD: &str = "SY_NAMESPACE_LOW_FD_CHILD";
+    const CHILD: &str = "RSY_NAMESPACE_LOW_FD_CHILD";
     if std::env::var_os(CHILD).is_none() {
         let output = std::process::Command::new(std::env::current_exe().unwrap())
             .args([

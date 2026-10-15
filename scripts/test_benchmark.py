@@ -21,7 +21,7 @@ import benchmark
 TOOL_SCRIPT = """#!/usr/bin/env python3
 import json, os, pathlib, shutil, sys
 if '--version' in sys.argv:
-    print('sy harness-test-artifact')
+    print('rsy harness-test-artifact')
     sys.exit(0)
 args = [arg for arg in sys.argv[1:] if arg not in ('-a', '--json', '-ii')
         and not arg.startswith('--out-format=')]
@@ -78,21 +78,21 @@ if os.environ.get('HARNESS_CORRUPT'):
 class RealBenchmarkHarnessTests(unittest.TestCase):
     """Controlled caller-owned fixtures; not general archive-policy equivalence.
 
-    Build the default CLI with cargo build --bin sy first, or select an existing
-    artifact with SY_BENCHMARK_TEST_BINARY. No SSH process or heavy dataset runs.
+    Build the default CLI with cargo build --bin rsy first, or select an existing
+    artifact with RSY_BENCHMARK_TEST_BINARY. No SSH process or heavy dataset runs.
     """
 
     @classmethod
     def setUpClass(cls):
         cls.binary = Path(
             os.environ.get(
-                "SY_BENCHMARK_TEST_BINARY",
-                str(benchmark.REPO_ROOT / "target" / "debug" / "sy"),
+                "RSY_BENCHMARK_TEST_BINARY",
+                str(benchmark.REPO_ROOT / "target" / "debug" / "rsy"),
             )
         ).resolve()
         if not cls.binary.is_file():
-            raise unittest.SkipTest("build sy with cargo build --bin sy first")
-        cls.tools = ["sy"] + (["rsync"] if shutil.which("rsync") else [])
+            raise unittest.SkipTest("build rsy with cargo build --bin rsy first")
+        cls.tools = ["rsy"] + (["rsync"] if shutil.which("rsync") else [])
 
     def setUp(self):
         output = contextlib.redirect_stdout(io.StringIO())
@@ -104,7 +104,7 @@ class RealBenchmarkHarnessTests(unittest.TestCase):
         config = {"files": 2, "size_kb": 1, "dirs": 4, "depth": 1}
         generate = benchmark.generate_test_data
         run = benchmark.run_command
-        observed = {"sy": [], "rsync": []}
+        observed = {"rsy": [], "rsync": []}
         originals = []
 
         def inspect_fixture(root, config):
@@ -118,7 +118,7 @@ class RealBenchmarkHarnessTests(unittest.TestCase):
             return counts
 
         def inspect_sample(args):
-            tool = "sy" if args[0] == str(self.binary) else "rsync"
+            tool = "rsy" if args[0] == str(self.binary) else "rsync"
             dest = Path(args[-1])
             observed[tool].append(
                 benchmark.tree_manifest(str(dest)) if dest.exists() else None
@@ -179,7 +179,7 @@ class RealBenchmarkHarnessTests(unittest.TestCase):
                     dest = Path(scratch) / tool
                     args = (
                         [str(self.binary), "-a", "--json"]
-                        if tool == "sy"
+                        if tool == "rsy"
                         else [
                             "rsync",
                             "-a",
@@ -200,14 +200,14 @@ class RealBenchmarkHarnessTests(unittest.TestCase):
                     self.assertNotEqual(before["file"][4], after["file"][4])
                     proof = benchmark.transfer_evidence(tool, stdout, expected)
                     self.assertEqual(proof.status, "zero_file_payload", proof)
-                    if tool == "sy":
+                    if tool == "rsy":
                         summary = json.loads(stdout.splitlines()[-1])
                         self.assertEqual(summary["files_updated"], 1)
 
     def test_original_bare_sy_and_basename_operands_are_rejected(self):
         run = benchmark.run_command
         for variant, diagnostic in (
-            ("bare-sy", "file_transfer"),
+            ("bare-rsy", "file_transfer"),
             ("basename", "content mismatch"),
         ):
             with self.subTest(variant=variant):
@@ -215,7 +215,7 @@ class RealBenchmarkHarnessTests(unittest.TestCase):
                 def original_command(args, variant=variant):
                     if args[0] == str(self.binary):
                         args = args.copy()
-                        if variant == "bare-sy":
+                        if variant == "bare-rsy":
                             args.remove("-a")
                         else:
                             args[-2] = args[-2].rstrip(os.sep)
@@ -242,7 +242,7 @@ class RealBenchmarkHarnessTests(unittest.TestCase):
                         unchanged = next(
                             result
                             for result in results
-                            if result.tool == "sy" and result.operation == "incremental"
+                            if result.tool == "rsy" and result.operation == "incremental"
                         )
                         self.assertIn(diagnostic, unchanged.error)
                         self.assertIsNone(unchanged.bytes_total)
@@ -278,7 +278,7 @@ class BenchmarkHarnessTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.binary = self.root / "chosen sy"
+        self.binary = self.root / "chosen rsy"
         self.binary.write_text(
             TOOL_SCRIPT.replace("#!/usr/bin/env python3", f"#!{sys.executable}")
         )
@@ -325,7 +325,7 @@ class BenchmarkHarnessTests(unittest.TestCase):
                 scratch.append(Path(result.stdout.strip()))
             return result
 
-        # Local semantics are covered with real sy/rsync above. Isolate SSH only:
+        # Local semantics are covered with real rsy/rsync above. Isolate SSH only:
         # peer cp/reset/hash/cleanup still run as real local commands, no network.
         with patch.object(benchmark, "ssh_command", side_effect=ssh_on_local_peer):
             results = self.scenario(transport="ssh", ssh_target="test-peer")
@@ -399,9 +399,9 @@ class BenchmarkHarnessTests(unittest.TestCase):
             ),
             "Transferred: 0 bytes",
         ):
-            with self.subTest(tool="sy", stdout=stdout):
+            with self.subTest(tool="rsy", stdout=stdout):
                 self.assertEqual(
-                    benchmark.transfer_evidence("sy", stdout, expected).status,
+                    benchmark.transfer_evidence("rsy", stdout, expected).status,
                     "proof_unavailable",
                 )
         valid = "SYBENCH|.d       |0|./\nSYBENCH|.d       |0|empty/\n"
@@ -444,17 +444,17 @@ class BenchmarkHarnessTests(unittest.TestCase):
                 )
 
     def test_failed_later_sample_is_not_a_successful_median(self):
-        # Each tool has 3 initial samples; sy's second unchanged sample fails.
+        # Each tool has 3 initial samples; rsy's second unchanged sample fails.
         with patch.dict(os.environ, {"HARNESS_FAIL_AT": "8"}):
             results = self.scenario()
         failed = [result for result in results if result.error]
         self.assertEqual(len(failed), 1)
-        self.assertEqual((failed[0].tool, failed[0].operation), ("sy", "incremental"))
+        self.assertEqual((failed[0].tool, failed[0].operation), ("rsy", "incremental"))
         self.assertIn("sample 2/3: exit 7: injected sync failure", failed[0].error)
         self.assertGreater(failed[0].duration_ms, 0)
         self.assertFalse(
             any(
-                result.tool == "sy" and result.operation == "delta"
+                result.tool == "rsy" and result.operation == "delta"
                 for result in results
             )
         )
@@ -471,7 +471,7 @@ class BenchmarkHarnessTests(unittest.TestCase):
         argv = [
             "benchmark.py",
             "--quick",
-            "--sy-binary",
+            "--rsy-binary",
             str(self.binary),
             "--iterations",
             "1",
@@ -482,18 +482,18 @@ class BenchmarkHarnessTests(unittest.TestCase):
         ):
             benchmark.main()
         run = json.loads(history.read_text())
-        artifact = run["ver"]["sy_binary"]
+        artifact = run["ver"]["rsy_binary"]
         self.assertEqual(artifact["path"], str(self.binary.resolve()))
         self.assertEqual(
             artifact["sha256"], hashlib.sha256(self.binary.read_bytes()).hexdigest()
         )
-        self.assertEqual(artifact["version"], "sy harness-test-artifact")
+        self.assertEqual(artifact["version"], "rsy harness-test-artifact")
         rsync_artifact = run["ver"]["rsync_binary"]
         self.assertEqual(rsync_artifact["path"], str(self.rsync.resolve()))
         self.assertEqual(
             rsync_artifact["sha256"], hashlib.sha256(self.rsync.read_bytes()).hexdigest()
         )
-        self.assertEqual(rsync_artifact["version"], "sy harness-test-artifact")
+        self.assertEqual(rsync_artifact["version"], "rsy harness-test-artifact")
         self.assertTrue(all(result["err"] is None for result in run["results"]))
         for result in run["results"]:
             if result["op"] == "incremental":

@@ -3,7 +3,7 @@
 //! OpenSSH owns configuration resolution: `Include`, `Match`, wildcard
 //! precedence, `HostName`, `User`, `ProxyJump`, `IdentityFile`,
 //! `ControlMaster`, and `Compression` all come from the user's own `ssh_config`
-//! applied to the alias exactly as written. `sy` never parses or reconstructs
+//! applied to the alias exactly as written. `rsy` never parses or reconstructs
 //! that file, so it cannot change the meaning of a configured alias.
 
 use std::ffi::OsString;

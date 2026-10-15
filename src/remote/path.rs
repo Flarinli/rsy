@@ -99,9 +99,11 @@ pub fn decode_relative_path(path: RelativeWirePath, peer: PlatformOs) -> Result<
 }
 
 fn validate_native_component(component: &OsStr) -> Result<()> {
+    // `components()` normalizes `a/`, `a/.` and `a//` to `a`; requiring the
+    // normalized name to equal the wire bytes rejects those byte-distinct aliases.
     let mut components = Path::new(component).components();
     match (components.next(), components.next()) {
-        (Some(Component::Normal(_)), None) => Ok(()),
+        (Some(Component::Normal(name)), None) if name == component => Ok(()),
         _ => Err(RemotePathError::InvalidPathComponent),
     }
 }

@@ -1,8 +1,8 @@
 use crate::cli::SymlinkMode;
 use crate::engine::compression::CompressionDetection;
 use crate::filter::FilterEngine;
+pub use rsy::engine::delete_plan::DeleteLimit;
 use std::path::PathBuf;
-pub use sy::engine::delete_plan::DeleteLimit;
 
 #[derive(Debug, Clone)]
 pub struct SyncConfig {

@@ -11,20 +11,20 @@ use crate::cli::SymlinkMode;
 use crate::error::{Result, SyncError};
 use crate::sync::scanner::ScanOptions;
 use crate::sync::{SyncConfig, SyncStats};
+use rsy::engine::controller::{
+    preflight_sync_scoped_with_content, preview_sync, ControllerError, SyncController, SyncSummary,
+};
+use rsy::engine::reconcile::OrderedReconciler;
+use rsy::engine::scan::ScanRequest;
+use rsy::engine::scheduler::{ResourceBudget, Scheduler};
+use rsy::protocol::Operation;
+use rsy::remote::pull::RemotePullExecutor;
+use rsy::remote::router::RouterConfig;
+use rsy::remote::runtime::ClientRemoteHandle;
+use rsy::remote::ssh::{SshLaunchOptions, SshRemoteSession};
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::time::Instant;
-use sy::engine::controller::{
-    preflight_sync_scoped_with_content, preview_sync, ControllerError, SyncController, SyncSummary,
-};
-use sy::engine::reconcile::OrderedReconciler;
-use sy::engine::scan::ScanRequest;
-use sy::engine::scheduler::{ResourceBudget, Scheduler};
-use sy::protocol::Operation;
-use sy::remote::pull::RemotePullExecutor;
-use sy::remote::router::RouterConfig;
-use sy::remote::runtime::ClientRemoteHandle;
-use sy::remote::ssh::{SshLaunchOptions, SshRemoteSession};
 
 /// Pull-specific option refusals.
 ///
@@ -52,7 +52,7 @@ pub(super) async fn run(
     let started = Instant::now();
     // OpenSSH resolves this alias with the user's own ssh_config; only an
     // explicit `user@` from the command line overrides it.
-    let target = sy::ssh::SshTarget::new(host, user.clone());
+    let target = rsy::ssh::SshTarget::new(host, user.clone());
     let router_config = RouterConfig {
         // --bwlimit paces the pull at the client's staging write (see
         // fetch_file); the router's outbound limiter stays off so control
@@ -73,7 +73,7 @@ pub(super) async fn run(
         &target,
         Operation::Pull,
         source_root,
-        &sy::remote::operand::RemoteOperand::Source { contents },
+        &rsy::remote::operand::RemoteOperand::Source { contents },
         router_config,
         launch,
     )
@@ -87,26 +87,26 @@ pub(super) async fn run(
     display_source.push(source_root);
     let display_source = std::path::PathBuf::from(display_source);
     let result = async {
-        use sy::endpoint::Endpoint;
-        let local = sy::endpoint::local::LocalEndpoint::new(destination_root.to_path_buf());
+        use rsy::endpoint::Endpoint;
+        let local = rsy::endpoint::local::LocalEndpoint::new(destination_root.to_path_buf());
         admit_remote_preservation(&remote, local.capabilities(), config)?;
         let shape = remote
             .binding()
             .source_shape
             .clone()
             .ok_or_else(|| SyncError::Config("peer omitted source operand shape".into()))?;
-        let shape = sy::remote::operand::decode_shape(shape).map_err(map_io)?;
+        let shape = rsy::remote::operand::decode_shape(shape).map_err(map_io)?;
         let source_name = match &shape {
-            sy::rooted_fs::operand::SourceShape::Directory { .. } => None,
-            sy::rooted_fs::operand::SourceShape::Leaf { name } => Some(name.clone()),
+            rsy::rooted_fs::operand::SourceShape::Directory { .. } => None,
+            rsy::rooted_fs::operand::SourceShape::Leaf { name } => Some(name.clone()),
         };
         let destination =
-            sy::rooted_fs::operand::BoundDestination::open(destination_root.to_path_buf(), shape)
+            rsy::rooted_fs::operand::BoundDestination::open(destination_root.to_path_buf(), shape)
                 .await
                 .map_err(map_io)?;
         let scope = match (source_name, &destination.name) {
-            (None, None) => sy::engine::domain::SyncScope::Tree,
-            (Some(source), Some(destination)) => sy::engine::domain::SyncScope::SelectedLeaf {
+            (None, None) => rsy::engine::domain::SyncScope::Tree,
+            (Some(source), Some(destination)) => rsy::engine::domain::SyncScope::SelectedLeaf {
                 source,
                 destination: destination.clone(),
             },
@@ -149,20 +149,20 @@ pub(super) async fn execute_with_handle(
     source_root: &Path,
     destination_root: &Path,
     remote: ClientRemoteHandle,
-    sender: sy::remote::router::RouterSender,
+    sender: rsy::remote::router::RouterSender,
     config: &SyncConfig,
     scan_options: ScanOptions,
 ) -> Result<SyncStats> {
-    let destination = sy::rooted_fs::operand::BoundDestination::open(
+    let destination = rsy::rooted_fs::operand::BoundDestination::open(
         destination_root.to_path_buf(),
-        sy::rooted_fs::operand::SourceShape::Directory { basename: None },
+        rsy::rooted_fs::operand::SourceShape::Directory { basename: None },
     )
     .await
     .map_err(map_io)?;
     execute_bound(
         source_root,
         destination,
-        sy::engine::domain::SyncScope::Tree,
+        rsy::engine::domain::SyncScope::Tree,
         remote,
         sender,
         config,
@@ -173,19 +173,19 @@ pub(super) async fn execute_with_handle(
 
 async fn execute_bound(
     source_root: &Path,
-    destination: sy::rooted_fs::operand::BoundDestination,
-    scope: sy::engine::domain::SyncScope,
+    destination: rsy::rooted_fs::operand::BoundDestination,
+    scope: rsy::engine::domain::SyncScope,
     remote: ClientRemoteHandle,
-    sender: sy::remote::router::RouterSender,
+    sender: rsy::remote::router::RouterSender,
     config: &SyncConfig,
     scan_options: ScanOptions,
 ) -> Result<SyncStats> {
-    use sy::endpoint::Endpoint;
+    use rsy::endpoint::Endpoint;
     let destination_root = destination.root.path().to_path_buf();
-    let local = sy::endpoint::local::LocalEndpoint::new(destination_root.clone());
+    let local = rsy::endpoint::local::LocalEndpoint::new(destination_root.clone());
     admit_remote_preservation(&remote, local.capabilities(), config)?;
     let destination_root = destination_root.as_path();
-    let reporter = std::sync::Arc::new(sy::sync::output::SyncReporter::new(
+    let reporter = std::sync::Arc::new(rsy::sync::output::SyncReporter::new(
         config.itemize_changes,
         config.json,
         config.quiet,
@@ -205,13 +205,13 @@ async fn execute_bound(
     .map_err(map_io)?;
     let rate_limiter = config.bwlimit.map(|limit| {
         std::sync::Arc::new(std::sync::Mutex::new(
-            sy::sync::ratelimit::RateLimiter::new(limit),
+            rsy::sync::ratelimit::RateLimiter::new(limit),
         ))
     });
     let backup_directory = pull_backup_dir(config, destination_root);
     let backup_namespace = if config.backup.is_some() {
         Some(
-            sy::engine::backup::BackupPolicy::capture_local(
+            rsy::engine::backup::BackupPolicy::capture_local(
                 destination_root,
                 backup_directory.as_deref(),
                 config.suffix.clone(),
@@ -247,9 +247,9 @@ async fn execute_bound(
         .destination_entries(destination_scan_request(config))
         .await
         .map_err(map_io)?;
-    let mut preflight = sy::engine::namespace::NamespacePreflight::new(namespace.as_ref());
+    let mut preflight = rsy::engine::namespace::NamespacePreflight::new(namespace.as_ref());
     if let Some((policy, root)) = &backup_namespace {
-        preflight = preflight.with_backup(sy::engine::namespace::BackupNamespace {
+        preflight = preflight.with_backup(rsy::engine::namespace::BackupNamespace {
             policy,
             qualification: namespace.as_ref(),
             external: root.as_ref(),
@@ -257,10 +257,10 @@ async fn execute_bound(
         });
     }
     let source_scan = match &scope {
-        sy::engine::domain::SyncScope::Tree => {
+        rsy::engine::domain::SyncScope::Tree => {
             remote.scan(source_scan_request(config, scan_options)).await
         }
-        sy::engine::domain::SyncScope::SelectedLeaf { source, .. } => {
+        rsy::engine::domain::SyncScope::SelectedLeaf { source, .. } => {
             remote
                 .scan_entry(source_scan_request(config, scan_options), source.clone())
                 .await
@@ -274,8 +274,8 @@ async fn execute_bound(
                 Ok(()) => operation,
                 Err(source) => ControllerError::PreflightDrain {
                     operation: Box::new(operation),
-                    drain: sy::engine::reconcile::EngineError::Endpoint {
-                        side: sy::engine::reconcile::Side::Destination,
+                    drain: rsy::engine::reconcile::EngineError::Endpoint {
+                        side: rsy::engine::reconcile::Side::Destination,
                         source,
                     },
                 },
@@ -291,7 +291,7 @@ async fn execute_bound(
     let delete_filter = config.filter_engine.clone();
     let max_depth = selection_max_depth(config, scan_options);
     let include_git_dir = scan_options.include_git_dir;
-    let tree_scope = scope == sy::engine::domain::SyncScope::Tree;
+    let tree_scope = scope == rsy::engine::domain::SyncScope::Tree;
     let scope_remote = remote.clone();
     // Source ignore rules are evaluated by the same held remote root as its
     // scan, not by the local filesystem at a similarly spelled pathname.
@@ -470,8 +470,8 @@ mod tests {
         );
     }
     use crate::sync::scanner::ScanOptions;
-    use sy::protocol::Operation;
-    use sy::remote::runtime::{IncomingRequest, ServerRemoteSession};
+    use rsy::protocol::Operation;
+    use rsy::remote::runtime::{IncomingRequest, ServerRemoteSession};
     use tempfile::TempDir;
 
     fn supported_config() -> crate::sync::SyncConfig {
@@ -510,7 +510,7 @@ mod tests {
                         scan.serve(incoming).await.unwrap();
                     }
                     IncomingRequest::FileFetch(incoming) => {
-                        sy::remote::fetch::serve_incoming_file_fetch(
+                        rsy::remote::fetch::serve_incoming_file_fetch(
                             rooted.clone(),
                             incoming,
                             &sender,
@@ -535,7 +535,7 @@ mod tests {
             session
         });
 
-        let session = sy::remote::runtime::ClientRemoteSession::connect(
+        let session = rsy::remote::runtime::ClientRemoteSession::connect(
             client_reader,
             client_writer,
             Operation::Pull,
@@ -597,7 +597,7 @@ mod tests {
                         // The client has already opened staging and pinned the
                         // scanned destination expectation before requesting bytes.
                         std::fs::write(&server_raced_destination, b"concurrent edit").unwrap();
-                        let result = sy::remote::fetch::serve_incoming_file_fetch(
+                        let result = rsy::remote::fetch::serve_incoming_file_fetch(
                             rooted.clone(),
                             incoming,
                             &sender,
@@ -606,7 +606,7 @@ mod tests {
                         .await;
                         assert!(matches!(
                             result,
-                            Err(sy::remote::transfer::RemoteTransferError::FetchCancelled { .. })
+                            Err(rsy::remote::transfer::RemoteTransferError::FetchCancelled { .. })
                         ));
                     }
                     _other => panic!("unexpected v3 pull request variant"),
@@ -614,7 +614,7 @@ mod tests {
             }
         });
 
-        let session = sy::remote::runtime::ClientRemoteSession::connect(
+        let session = rsy::remote::runtime::ClientRemoteSession::connect(
             client_reader,
             client_writer,
             Operation::Pull,
@@ -678,7 +678,7 @@ mod tests {
                 match session.next_request().await.unwrap().unwrap() {
                     IncomingRequest::Scan(incoming) => scan.serve(incoming).await.unwrap(),
                     IncomingRequest::FileFetch(incoming) => {
-                        sy::remote::fetch::serve_incoming_file_fetch(
+                        rsy::remote::fetch::serve_incoming_file_fetch(
                             rooted.clone(),
                             incoming,
                             &sender,
@@ -692,7 +692,7 @@ mod tests {
             }
         });
 
-        let session = sy::remote::runtime::ClientRemoteSession::connect(
+        let session = rsy::remote::runtime::ClientRemoteSession::connect(
             client_reader,
             client_writer,
             Operation::Pull,
@@ -748,7 +748,7 @@ mod tests {
                 match session.next_request().await.unwrap().unwrap() {
                     IncomingRequest::Scan(incoming) => scan.serve(incoming).await.unwrap(),
                     IncomingRequest::FileFetch(incoming) => {
-                        sy::remote::fetch::serve_incoming_file_fetch(
+                        rsy::remote::fetch::serve_incoming_file_fetch(
                             rooted.clone(),
                             incoming,
                             &sender,
@@ -771,7 +771,7 @@ mod tests {
             session // Retain transport until local directory finalization.
         });
 
-        let session = sy::remote::runtime::ClientRemoteSession::connect(
+        let session = rsy::remote::runtime::ClientRemoteSession::connect(
             client_reader,
             client_writer,
             Operation::Pull,
@@ -858,7 +858,7 @@ mod tests {
                 match session.next_request().await.unwrap().unwrap() {
                     IncomingRequest::Scan(incoming) => scan.serve(incoming).await.unwrap(),
                     IncomingRequest::FileFetch(incoming) => {
-                        sy::remote::fetch::serve_incoming_file_fetch(
+                        rsy::remote::fetch::serve_incoming_file_fetch(
                             rooted.clone(),
                             incoming,
                             &sender,
@@ -872,7 +872,7 @@ mod tests {
             }
         });
 
-        let session = sy::remote::runtime::ClientRemoteSession::connect(
+        let session = rsy::remote::runtime::ClientRemoteSession::connect(
             client_reader,
             client_writer,
             Operation::Pull,
@@ -943,7 +943,7 @@ mod tests {
                         flags_handler.serve(incoming).await.unwrap();
                     }
                     IncomingRequest::FileFetch(incoming) => {
-                        sy::remote::fetch::serve_incoming_file_fetch(
+                        rsy::remote::fetch::serve_incoming_file_fetch(
                             rooted.clone(),
                             incoming,
                             &sender,
@@ -957,7 +957,7 @@ mod tests {
             }
         });
 
-        let session = sy::remote::runtime::ClientRemoteSession::connect(
+        let session = rsy::remote::runtime::ClientRemoteSession::connect(
             client_reader,
             client_writer,
             Operation::Pull,
@@ -1016,7 +1016,7 @@ mod tests {
                 match session.next_request().await.unwrap().unwrap() {
                     IncomingRequest::Scan(incoming) => scan.serve(incoming).await.unwrap(),
                     IncomingRequest::FileFetch(incoming) => {
-                        sy::remote::fetch::serve_incoming_file_fetch(
+                        rsy::remote::fetch::serve_incoming_file_fetch(
                             rooted.clone(),
                             incoming,
                             &sender,
@@ -1030,7 +1030,7 @@ mod tests {
             }
         });
 
-        let session = sy::remote::runtime::ClientRemoteSession::connect(
+        let session = rsy::remote::runtime::ClientRemoteSession::connect(
             client_reader,
             client_writer,
             Operation::Pull,
@@ -1136,7 +1136,7 @@ mod tests {
         // The refused cluster keeps its reasons for defense-in-depth: if
         // validation ever leaks one through, the session still refuses.
         config.delete = crate::sync::DeleteMode::Enabled {
-            limit: sy::engine::delete_plan::DeleteLimit::Unlimited,
+            limit: rsy::engine::delete_plan::DeleteLimit::Unlimited,
             force: false,
         };
         assert_eq!(pull_unsupported_reason(&config), None);
@@ -1173,7 +1173,7 @@ mod tests {
             std::fs::write(source_root_path.join("raced"), b"after-scan-contents").unwrap();
             match session.next_request().await.unwrap().unwrap() {
                 IncomingRequest::FileFetch(incoming) => {
-                    let error = sy::remote::fetch::serve_incoming_file_fetch(
+                    let error = rsy::remote::fetch::serve_incoming_file_fetch(
                         rooted.clone(),
                         incoming,
                         &sender,
@@ -1190,7 +1190,7 @@ mod tests {
             }
         });
 
-        let session = sy::remote::runtime::ClientRemoteSession::connect(
+        let session = rsy::remote::runtime::ClientRemoteSession::connect(
             client_reader,
             client_writer,
             Operation::Pull,

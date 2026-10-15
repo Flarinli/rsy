@@ -11,16 +11,16 @@ use crate::cli::SymlinkMode;
 use crate::error::{Result, SyncError};
 use crate::sync::scanner::ScanOptions;
 use crate::sync::{SyncConfig, SyncStats};
+use rsy::engine::controller::{
+    preflight_sync_scoped_with_content, preview_sync, ControllerError, SyncController, SyncSummary,
+};
+use rsy::engine::domain::{Entry, SyncScope};
+use rsy::engine::reconcile::OrderedReconciler;
+use rsy::engine::scheduler::{ResourceBudget, Scheduler};
+use rsy::remote::local_executor::LocalSyncExecutor;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use sy::engine::controller::{
-    preflight_sync_scoped_with_content, preview_sync, ControllerError, SyncController, SyncSummary,
-};
-use sy::engine::domain::{Entry, SyncScope};
-use sy::engine::reconcile::OrderedReconciler;
-use sy::engine::scheduler::{ResourceBudget, Scheduler};
-use sy::remote::local_executor::LocalSyncExecutor;
 
 pub(super) async fn run(
     source_root: &Path,
@@ -32,29 +32,29 @@ pub(super) async fn run(
     // Controller journals are created before either entry stream is polled.
     // Refuse unsafe scratch configuration before spawning even the dest scan.
     if scope == SyncScope::Tree {
-        sy::endpoint::local_entry_scan::validate_scratch_location(source_root.to_path_buf())
+        rsy::endpoint::local_entry_scan::validate_scratch_location(source_root.to_path_buf())
             .await
             .map_err(map_io)?;
     }
-    let source_authority = sy::endpoint::source_root::SourceRoot::open(source_root.to_path_buf())
+    let source_authority = rsy::endpoint::source_root::SourceRoot::open(source_root.to_path_buf())
         .await
         .map_err(map_io)?;
     // Capture either the root or its original held ancestor before scanning.
     // Tree and selected work both defer missing parents until a completed
     // preflight selects a Create; absence never permits a fresh pathname open.
-    let binding = sy::rooted_fs::operand::BoundDestination::open(
+    let binding = rsy::rooted_fs::operand::BoundDestination::open(
         destination_root.to_path_buf(),
-        sy::rooted_fs::operand::SourceShape::Directory { basename: None },
+        rsy::rooted_fs::operand::SourceShape::Directory { basename: None },
     )
     .await
-    .map_err(sy::endpoint::local::map_rooted_fs_error)?;
+    .map_err(rsy::endpoint::local::map_rooted_fs_error)?;
     let destination_endpoint =
-        sy::endpoint::local::LocalEndpoint::new(destination_root.to_path_buf());
+        rsy::endpoint::local::LocalEndpoint::new(destination_root.to_path_buf());
     let (destination_endpoint, pending) = match binding.root {
-        sy::rooted_fs::operand::DestinationRoot::Present(rooted) => {
+        rsy::rooted_fs::operand::DestinationRoot::Present(rooted) => {
             (destination_endpoint.with_rooted_authority(rooted), None)
         }
-        pending @ sy::rooted_fs::operand::DestinationRoot::Pending(_) => {
+        pending @ rsy::rooted_fs::operand::DestinationRoot::Pending(_) => {
             (destination_endpoint, Some(pending))
         }
     };
@@ -74,14 +74,14 @@ pub(super) async fn run(
 /// to reopen an existing observation; only completed preflight may admit
 /// later creation.
 async fn run_with_authorities(
-    source_authority: sy::endpoint::source_root::SourceRoot,
-    destination_endpoint: sy::endpoint::local::LocalEndpoint,
-    pending: Option<sy::rooted_fs::operand::DestinationRoot>,
+    source_authority: rsy::endpoint::source_root::SourceRoot,
+    destination_endpoint: rsy::endpoint::local::LocalEndpoint,
+    pending: Option<rsy::rooted_fs::operand::DestinationRoot>,
     config: &SyncConfig,
     scan_options: ScanOptions,
     scope: SyncScope,
 ) -> Result<SyncStats> {
-    use sy::endpoint::Endpoint;
+    use rsy::endpoint::Endpoint;
     let destination_endpoint = match pending {
         Some(authority) => destination_endpoint.with_destination_authority(authority),
         None => destination_endpoint,
@@ -91,7 +91,7 @@ async fn run_with_authorities(
     // must still name that root at local execution/completion boundaries.
     let destination_root_owned = destination_endpoint.root().to_path_buf();
     let destination_root = destination_root_owned.as_path();
-    let reporter = std::sync::Arc::new(sy::sync::output::SyncReporter::new(
+    let reporter = std::sync::Arc::new(rsy::sync::output::SyncReporter::new(
         config.itemize_changes,
         config.json,
         config.quiet,
@@ -108,7 +108,7 @@ async fn run_with_authorities(
     let backup_directory = backup_dir(config, destination_root);
     let backup_namespace = if config.backup.is_some() {
         Some(
-            sy::engine::backup::BackupPolicy::capture_local(
+            rsy::engine::backup::BackupPolicy::capture_local(
                 destination_root,
                 backup_directory.as_deref(),
                 config.suffix.clone(),
@@ -119,9 +119,9 @@ async fn run_with_authorities(
     } else {
         None
     };
-    let mut preflight = sy::engine::namespace::NamespacePreflight::new(namespace.as_ref());
+    let mut preflight = rsy::engine::namespace::NamespacePreflight::new(namespace.as_ref());
     if let Some((policy, root)) = &backup_namespace {
-        preflight = preflight.with_backup(sy::engine::namespace::BackupNamespace {
+        preflight = preflight.with_backup(rsy::engine::namespace::BackupNamespace {
             policy,
             qualification: namespace.as_ref(),
             external: root.as_ref(),
@@ -137,7 +137,7 @@ async fn run_with_authorities(
         SyncScope::Tree => (
             source_authority.entries(source_scan_request(config, scan_options)),
             destination_authority.as_ref().map_or_else(
-                || sy::engine::reconcile::EntryStream::new(futures::stream::empty()),
+                || rsy::engine::reconcile::EntryStream::new(futures::stream::empty()),
                 |rooted| rooted.entry_stream(destination_scan_request(config)),
             ),
         ),
@@ -151,7 +151,7 @@ async fn run_with_authorities(
                 false,
             ),
             destination_authority.as_ref().map_or_else(
-                || sy::engine::reconcile::EntryStream::new(futures::stream::empty()),
+                || rsy::engine::reconcile::EntryStream::new(futures::stream::empty()),
                 |rooted| {
                     rooted.selected_entry_stream(
                         destination.clone(),
@@ -173,7 +173,7 @@ async fn run_with_authorities(
     // Source-derived ignore scope: destination-only paths the source rules
     // would ignore are protected from deletion (see `engine::ignore_scope`).
     let ignore_scope = std::sync::Arc::new(std::sync::Mutex::new(
-        sy::engine::ignore_scope::SourceIgnoreScope::with_rooted_authority(
+        rsy::engine::ignore_scope::SourceIgnoreScope::with_rooted_authority(
             source_authority.rooted(),
             scan_options.respect_gitignore,
         ),
@@ -280,7 +280,7 @@ async fn run_with_authorities(
     .map_err(map_io)?;
     let rate_limiter = config.bwlimit.map(|limit| {
         std::sync::Arc::new(std::sync::Mutex::new(
-            sy::sync::ratelimit::RateLimiter::new(limit),
+            rsy::sync::ratelimit::RateLimiter::new(limit),
         ))
     });
     let executor = LocalSyncExecutor::new(source_authority, destination_endpoint, scheduler)
@@ -386,8 +386,8 @@ mod tests {
                     SyncScope::Tree
                 } else {
                     SyncScope::SelectedLeaf {
-                        source: sy::engine::domain::RelativePath::new("file").unwrap(),
-                        destination: sy::engine::domain::RelativePath::new("file").unwrap(),
+                        source: rsy::engine::domain::RelativePath::new("file").unwrap(),
+                        destination: rsy::engine::domain::RelativePath::new("file").unwrap(),
                     }
                 };
                 let stats = run(
@@ -454,15 +454,15 @@ mod tests {
     #[tokio::test]
     async fn destination_root_authority_rejects_identical_leaf_alias_swap() {
         use futures::TryStreamExt;
-        use sy::endpoint::existing::{fingerprint, FingerprintOptions};
-        use sy::endpoint::local::LocalEndpoint;
-        use sy::endpoint::source_root::SourceRoot;
+        use rsy::endpoint::existing::{fingerprint, FingerprintOptions};
+        use rsy::endpoint::local::LocalEndpoint;
+        use rsy::endpoint::source_root::SourceRoot;
 
         for scope in [
             SyncScope::Tree,
             SyncScope::SelectedLeaf {
-                source: sy::engine::domain::RelativePath::new("file").unwrap(),
-                destination: sy::engine::domain::RelativePath::new("file").unwrap(),
+                source: rsy::engine::domain::RelativePath::new("file").unwrap(),
+                destination: rsy::engine::domain::RelativePath::new("file").unwrap(),
             },
         ] {
             let parent = tempfile::tempdir().unwrap();
@@ -545,7 +545,7 @@ mod tests {
 
     #[tokio::test]
     async fn pending_local_acquisition_never_adopts_a_foreign_root_or_ancestor() {
-        use sy::rooted_fs::operand::{BoundDestination, SourceShape};
+        use rsy::rooted_fs::operand::{BoundDestination, SourceShape};
         for swap_ancestor in [false, true] {
             let fixture = tempfile::tempdir().unwrap();
             let source_path = fixture.path().join("source");
@@ -555,7 +555,7 @@ mod tests {
             std::fs::create_dir(&source_path).unwrap();
             std::fs::create_dir(&ancestor).unwrap();
             std::fs::write(source_path.join("file"), b"SOURCE").unwrap();
-            let source = sy::endpoint::source_root::SourceRoot::open(source_path)
+            let source = rsy::endpoint::source_root::SourceRoot::open(source_path)
                 .await
                 .unwrap();
             let binding = BoundDestination::open(
@@ -573,7 +573,7 @@ mod tests {
             }
             let result = run_with_authorities(
                 source,
-                sy::endpoint::local::LocalEndpoint::new(destination.clone()),
+                rsy::endpoint::local::LocalEndpoint::new(destination.clone()),
                 Some(binding.root),
                 &SyncConfig::test_default(),
                 ScanOptions::default(),
@@ -642,7 +642,7 @@ mod tests {
             let mut fixture = SourceRootSwap::new().await;
             let inner = LocalSyncExecutor::new(
                 fixture.source.clone(),
-                sy::endpoint::local::LocalEndpoint::new(fixture.destination.path().into()),
+                rsy::endpoint::local::LocalEndpoint::new(fixture.destination.path().into()),
                 Scheduler::new(ResourceBudget::default()).unwrap(),
             )
             .with_hardlinks(preserve_hardlinks)

@@ -108,10 +108,10 @@ impl Capabilities {
     /// the protocol boundary. Transfer and executor code must not depend on
     /// wire-level capability bits.
     pub fn from_negotiated_wire(
-        wire: sy::protocol::CapabilitySet,
+        wire: rsy::protocol::CapabilitySet,
         modtime_precision_ns: u64,
     ) -> Self {
-        use sy::protocol::CapabilitySet as Wire;
+        use rsy::protocol::CapabilitySet as Wire;
 
         let staged_write = wire.contains(Wire::STAGED_WRITE);
         let blake3 = wire.contains(Wire::BLAKE3);
@@ -351,8 +351,8 @@ pub trait Endpoint: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::Capabilities;
+    use rsy::protocol::CapabilitySet;
     use std::time::Duration;
-    use sy::protocol::CapabilitySet;
 
     #[test]
     fn negotiated_wire_capabilities_map_to_endpoint_semantics() {

@@ -10,10 +10,10 @@ use crate::sync::config::SyncConfig;
 use crate::sync::scanner::ScanOptions;
 use crate::sync::stats::SyncStats;
 use crate::sync::verification::{Difference, VerificationResult};
+use rsy::engine::domain::{Entry, EntryKind, SyncScope};
+use rsy::engine::reconcile::{EngineError, OrderedReconciler, ReconcileItem};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use sy::engine::domain::{Entry, EntryKind, SyncScope};
-use sy::engine::reconcile::{EngineError, OrderedReconciler, ReconcileItem};
 
 /// Endpoint description used for top-level strategy dispatch.
 pub enum EndpointPair {

@@ -87,7 +87,7 @@ async fn corrupt_record_lengths_fail_before_allocation_and_poison_storage() {
 #[cfg(unix)]
 #[test]
 fn membership_remains_exact_with_bounded_memory_and_descriptors() {
-    const CHILD: &str = "SY_HARDLINK_MEMBERSHIP_RESOURCE_CHILD";
+    const CHILD: &str = "RSY_HARDLINK_MEMBERSHIP_RESOURCE_CHILD";
     if std::env::var_os(CHILD).is_none() {
         let result = std::process::Command::new("sh")
             .args(["-c", "ulimit -n 32; exec \"$1\" --exact engine::hardlink_preflight::tests::membership_remains_exact_with_bounded_memory_and_descriptors --nocapture", "hardlink-membership-test"])

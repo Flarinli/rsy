@@ -1,11 +1,11 @@
 //! The source can alias a local pull destination even when the peer is read-only.
 #![cfg(all(target_os = "macos", feature = "ssh"))]
 
+use rsy::engine::domain::{EntryKind, RelativePath};
+use rsy::rooted_fs::RootedFs;
 use std::os::macos::fs::MetadataExt;
 use std::os::unix::fs::{MetadataExt as UnixMetadataExt, PermissionsExt};
 use std::time::Duration;
-use sy::engine::domain::{EntryKind, RelativePath};
-use sy::rooted_fs::RootedFs;
 
 #[tokio::test]
 async fn flags_only_pull_refuses_destination_alias_of_excluded_source() {
@@ -40,7 +40,7 @@ async fn flags_only_pull_refuses_destination_alias_of_excluded_source() {
     assert_eq!(source_before.st_flags(), 0);
     std::fs::write(
         bin.join("ssh"),
-        b"#!/bin/sh\nexec \"$SY_TEST_AGENT\" __serve\n",
+        b"#!/bin/sh\nexec \"$RSY_TEST_AGENT\" __serve\n",
     )
     .unwrap();
     std::fs::set_permissions(bin.join("ssh"), std::fs::Permissions::from_mode(0o700)).unwrap();
@@ -48,9 +48,9 @@ async fn flags_only_pull_refuses_destination_alias_of_excluded_source() {
     paths.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
     let output = tokio::time::timeout(
         Duration::from_secs(15),
-        tokio::process::Command::new(env!("CARGO_BIN_EXE_sy"))
+        tokio::process::Command::new(env!("CARGO_BIN_EXE_rsy"))
             .env("PATH", std::env::join_paths(paths).unwrap())
-            .env("SY_TEST_AGENT", env!("CARGO_BIN_EXE_sy"))
+            .env("RSY_TEST_AGENT", env!("CARGO_BIN_EXE_rsy"))
             .args(["--size-only", "--preserve-flags", "--exclude", "b"])
             .arg(format!("test-peer:{}/", source.display()))
             .arg(&destination)

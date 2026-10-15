@@ -62,7 +62,7 @@ jobs:
       - name: Check if already published to crates.io
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          CRATES_VERSION=$(curl -sf https://crates.io/api/v1/crates/sy | jq -r '.versions[0].num' || echo "0.0.0")
+          CRATES_VERSION=$(curl -sf https://crates.io/api/v1/crates/rsy | jq -r '.versions[0].num' || echo "0.0.0")
 
           echo "Target version: $VERSION"
           echo "Latest on crates.io: $CRATES_VERSION"
@@ -105,7 +105,7 @@ jobs:
         run: |
           cargo install usage-cli --version 6.12.0 --locked
           cargo run --locked --bin man-gen
-          git diff --exit-code man/sy.1
+          git diff --exit-code man/rsy.1
 
   verify-macos:
     name: Verify macOS semantics
@@ -133,10 +133,10 @@ jobs:
         include:
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: sy-aarch64-apple-darwin
+            artifact_name: rsy-aarch64-apple-darwin
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: sy-x86_64-unknown-linux-gnu
+            artifact_name: rsy-x86_64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v4
 
@@ -152,14 +152,14 @@ jobs:
 
       - name: Build release binary
         run: |
-          cargo build --locked --release --bin sy --features acl --target ${{ matrix.target }}
+          cargo build --locked --release --bin rsy --features acl --target ${{ matrix.target }}
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/sy dist/
+          cp target/${{ matrix.target }}/release/rsy dist/
 
       - name: Create tarball
         run: |
           cd dist
-          tar czf ${{ matrix.artifact_name }}.tar.gz sy
+          tar czf ${{ matrix.artifact_name }}.tar.gz rsy
           shasum -a 256 ${{ matrix.artifact_name }}.tar.gz > ${{ matrix.artifact_name }}.tar.gz.sha256
 
       - uses: actions/upload-artifact@v4
@@ -187,13 +187,13 @@ jobs:
       # musl artifacts intentionally omit ACLs: no dynamic libacl dependency.
       - name: Build static release binary
         run: |
-          cargo build --locked --release --bin sy --target ${{ matrix.target }}
+          cargo build --locked --release --bin rsy --target ${{ matrix.target }}
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/sy dist/
+          cp target/${{ matrix.target }}/release/rsy dist/
 
       - name: Verify the artifact is fully static
         run: |
-          BIN=dist/sy
+          BIN=dist/rsy
           file "$BIN"
           # Standalone musl artifacts are the remote-agent distribution story
           # (#26/#28): they must run on any Linux regardless of its libc.
@@ -213,19 +213,19 @@ jobs:
         run: |
           work=$(mktemp -d)
           printf 'static smoke' > "$work/source"
-          ./dist/sy "$work/source" "$work/copy"
+          ./dist/rsy "$work/source" "$work/copy"
           test "$(cat "$work/copy")" = "static smoke"
 
       - name: Create tarball
         run: |
           cd dist
-          tar czf sy-${{ matrix.target }}.tar.gz sy
-          sha256sum sy-${{ matrix.target }}.tar.gz > sy-${{ matrix.target }}.tar.gz.sha256
+          tar czf rsy-${{ matrix.target }}.tar.gz rsy
+          sha256sum rsy-${{ matrix.target }}.tar.gz > rsy-${{ matrix.target }}.tar.gz.sha256
 
       - uses: actions/upload-artifact@v4
         with:
-          name: sy-${{ matrix.target }}
-          path: dist/sy-${{ matrix.target }}.tar.gz*
+          name: rsy-${{ matrix.target }}
+          path: dist/rsy-${{ matrix.target }}.tar.gz*
 
   # ============================================================================
   # STAGE 3: Create GitHub Release (stays draft until manually published)
@@ -278,7 +278,7 @@ jobs:
         id: check
         run: |
           VERSION=${{ needs.verify.outputs.version }}
-          CRATES_VERSION=$(curl -sf https://crates.io/api/v1/crates/sy | jq -r '.versions[0].num' || echo "0.0.0")
+          CRATES_VERSION=$(curl -sf https://crates.io/api/v1/crates/rsy | jq -r '.versions[0].num' || echo "0.0.0")
           if [ "$VERSION" = "$CRATES_VERSION" ]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Version $VERSION already on crates.io, skipping"

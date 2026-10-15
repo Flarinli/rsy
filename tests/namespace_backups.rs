@@ -4,7 +4,7 @@ use std::path::Path;
 use std::process::{Command, Output};
 
 fn sync(source: &Path, destination: &Path, backup: &Path, extra: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_sy"))
+    Command::new(env!("CARGO_BIN_EXE_rsy"))
         .arg(format!("{}/", source.display()))
         .arg(destination)
         .arg("--backup")
@@ -147,7 +147,7 @@ fn selected_local_backup_rejects_unscanned_native_aliases_before_effects() {
             eprintln!("observed prerequisite unavailable: native case aliases do not resolve");
             return;
         }
-        let mut command = Command::new(env!("CARGO_BIN_EXE_sy"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_rsy"));
         command
             .arg(source.join("original"))
             .arg(destination.join("foo"))
@@ -191,7 +191,7 @@ fn selected_local_literal_backup_slot_is_overwritable_across_runs() {
         if old != b"old" {
             std::fs::write(&source, b"next").unwrap();
         }
-        let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+        let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
             .arg(&source)
             .arg(&destination)
             .args(["--backup", "--size-only"])

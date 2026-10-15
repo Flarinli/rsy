@@ -69,7 +69,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }}
       - name: Verify the artifact is fully static
         run: |
-          BIN=target/${{ matrix.target }}/release/sy
+          BIN=target/${{ matrix.target }}/release/rsy
           file "$BIN"
           # Standalone musl artifacts must run on any Linux regardless of its
           # libc: no dynamic interpreter and no shared-library dependencies.
@@ -86,7 +86,7 @@ jobs:
       - name: Smoke test the static binary
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
-          BIN=target/${{ matrix.target }}/release/sy
+          BIN=target/${{ matrix.target }}/release/rsy
           work=$(mktemp -d)
           printf 'static smoke' > "$work/source"
           "$BIN" "$work/source" "$work/copy"
@@ -133,7 +133,7 @@ jobs:
         run: cargo install usage-cli --version 6.12.0 --locked
       - run: cargo run --bin man-gen
       - name: Check man page is up to date
-        run: git diff --exit-code man/sy.1 || (echo "Man page out of date. Run 'cargo run --bin man-gen' and commit." && exit 1)
+        run: git diff --exit-code man/rsy.1 || (echo "Man page out of date. Run 'cargo run --bin man-gen' and commit." && exit 1)
 
   # ==========================================================================
   # Stage 2: Tests (after lint passes)

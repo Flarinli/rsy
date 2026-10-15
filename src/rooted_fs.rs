@@ -3427,7 +3427,7 @@ impl RootedFs {
 #[cfg(unix)]
 fn next_temp_name() -> OsString {
     let id = NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed);
-    OsString::from(format!(".sy-stage-{}-{id}", std::process::id()))
+    OsString::from(format!(".rsy-stage-{}-{id}", std::process::id()))
 }
 
 #[cfg(unix)]

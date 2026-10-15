@@ -616,12 +616,12 @@ async fn destination_directory_syntax_cannot_authorize_leaf_replacement() {
                 destination_arg.push(suffix);
                 let output = tokio::time::timeout(
                     Duration::from_secs(15),
-                    tokio::process::Command::new(env!("CARGO_BIN_EXE_sy"))
+                    tokio::process::Command::new(env!("CARGO_BIN_EXE_rsy"))
                         .args([source_arg, destination_arg])
                         .args(["-a", "--quiet", "--no-hooks"])
                         .env("PATH", &search_path)
-                        .env("SY_TEST_AGENT", env!("CARGO_BIN_EXE_sy"))
-                        .env("SY_TEST_SSH_LOG", &log)
+                        .env("RSY_TEST_AGENT", env!("CARGO_BIN_EXE_rsy"))
+                        .env("RSY_TEST_SSH_LOG", &log)
                         .kill_on_drop(true)
                         .output(),
                 )
@@ -862,7 +862,7 @@ async fn unreadable_selected_destination_is_replaced_without_old_payload_reads()
         let old_size = if pull {
             3
         } else {
-            sy::remote::push::DEFAULT_REMOTE_DELTA_MIN_SIZE as usize
+            rsy::remote::push::DEFAULT_REMOTE_DELTA_MIN_SIZE as usize
         };
         let payload = vec![b'n'; old_size + 1];
         std::fs::write(&source, &payload).unwrap();
@@ -908,7 +908,7 @@ fn ssh_path(root: &std::path::Path) -> OsString {
     std::fs::create_dir(&bin).unwrap();
     let ssh = bin.join("ssh");
     // Only transport is substituted; paths remain real protocol data.
-    std::fs::write(&ssh, b"#!/bin/sh\n[ \"$#\" -eq 3 ] && [ \"$1\" = test-peer ] && [ \"$2\" = sy ] && [ \"$3\" = __serve ] || exit 91\nprintf 'launch\\n' >> \"$SY_TEST_SSH_LOG\"\nexec \"$SY_TEST_AGENT\" __serve\n").unwrap();
+    std::fs::write(&ssh, b"#!/bin/sh\n[ \"$#\" -eq 5 ] && [ \"$1\" = -T ] && [ \"$2\" = -- ] && [ \"$3\" = test-peer ] && [ \"$4\" = rsy ] && [ \"$5\" = __serve ] || exit 91\nprintf 'launch\\n' >> \"$RSY_TEST_SSH_LOG\"\nexec \"$RSY_TEST_AGENT\" __serve\n").unwrap();
     std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o700)).unwrap();
     let mut search_path = vec![bin];
     search_path.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
@@ -941,14 +941,14 @@ async fn run_copy(
         .unwrap()
         .join("ssh-launches");
     let before = std::fs::read(&log).unwrap_or_default().len();
-    let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_sy"));
+    let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_rsy"));
     command
         .args([source, destination])
         .args(flags)
         .args(["--quiet", "--no-hooks"])
         .env("PATH", search_path)
-        .env("SY_TEST_AGENT", env!("CARGO_BIN_EXE_sy"))
-        .env("SY_TEST_SSH_LOG", &log)
+        .env("RSY_TEST_AGENT", env!("CARGO_BIN_EXE_rsy"))
+        .env("RSY_TEST_SSH_LOG", &log)
         .kill_on_drop(true);
     let output = tokio::time::timeout(Duration::from_secs(15), command.output())
         .await

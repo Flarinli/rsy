@@ -32,4 +32,4 @@ clean:
 
 # Sync to fedora for testing
 sync-fedora:
-    rsync -av --exclude=target --exclude=.git --exclude=ai --exclude=.pi --exclude=.tasks . fedora:~/github/nijaru/sy/
+    rsync -av --exclude=target --exclude=.git --exclude=ai --exclude=.pi --exclude=.tasks . fedora:~/github/Flarinli/rsy/

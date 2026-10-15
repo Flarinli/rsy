@@ -23,8 +23,8 @@ pub struct LocalEndpoint {
     capabilities: Capabilities,
     publication: std::sync::Arc<crate::endpoint::publication::PublicationAdmission>,
     run_admission: Option<std::sync::Arc<crate::endpoint::publication::PublicationAdmission>>,
-    rooted: std::sync::Arc<tokio::sync::OnceCell<std::sync::Arc<sy::rooted_fs::RootedFs>>>,
-    binding: std::sync::Arc<tokio::sync::OnceCell<sy::rooted_fs::operand::DestinationRoot>>,
+    rooted: std::sync::Arc<tokio::sync::OnceCell<std::sync::Arc<rsy::rooted_fs::RootedFs>>>,
+    binding: std::sync::Arc<tokio::sync::OnceCell<rsy::rooted_fs::operand::DestinationRoot>>,
 }
 
 impl LocalEndpoint {
@@ -95,7 +95,7 @@ impl LocalEndpoint {
         std::sync::Arc::clone(&self.publication)
     }
 
-    pub(crate) fn with_rooted_authority(mut self, mut rooted: sy::rooted_fs::RootedFs) -> Self {
+    pub(crate) fn with_rooted_authority(mut self, mut rooted: rsy::rooted_fs::RootedFs) -> Self {
         // A supplied native owner is authoritative (not a reason to create a
         // fresh open gate). The explicit builder above can bind a run/router.
         if let Some(admission) = rooted.mutation_admission() {
@@ -109,7 +109,7 @@ impl LocalEndpoint {
             rooted.bind_run_mutations(std::sync::Arc::clone(admission));
         }
         self.binding = std::sync::Arc::new(tokio::sync::OnceCell::new_with(Some(
-            sy::rooted_fs::operand::DestinationRoot::Present(rooted.clone()),
+            rsy::rooted_fs::operand::DestinationRoot::Present(rooted.clone()),
         )));
         self.rooted = std::sync::Arc::new(tokio::sync::OnceCell::new_with(Some(
             std::sync::Arc::new(rooted),
@@ -119,9 +119,9 @@ impl LocalEndpoint {
 
     pub(crate) fn with_destination_authority(
         mut self,
-        mut authority: sy::rooted_fs::operand::DestinationRoot,
+        mut authority: rsy::rooted_fs::operand::DestinationRoot,
     ) -> Self {
-        if let sy::rooted_fs::operand::DestinationRoot::Present(rooted) = authority {
+        if let rsy::rooted_fs::operand::DestinationRoot::Present(rooted) = authority {
             return self.with_rooted_authority(rooted);
         }
         authority.bind_mutations(self.publication_admission(), false);
@@ -136,11 +136,11 @@ impl LocalEndpoint {
     /// held roots deliberately do not use these operator-address checks.
     pub(crate) fn commit_reconstruction_blocking(
         &self,
-        relative: &sy::engine::domain::RelativePath,
-        staged: sy::rooted_fs::RootedStagedFile,
+        relative: &rsy::engine::domain::RelativePath,
+        staged: rsy::rooted_fs::RootedStagedFile,
         flags: Option<u32>,
         admission: &std::sync::Arc<crate::endpoint::publication::PublicationAdmission>,
-    ) -> Result<sy::rooted_fs::PublishedFileProof> {
+    ) -> Result<rsy::rooted_fs::PublishedFileProof> {
         let rooted = self.acquired_rooted_fs().ok_or_else(|| {
             SyncError::Config("local reconstruction has no original root authority".into())
         })?;
@@ -167,20 +167,20 @@ impl LocalEndpoint {
     }
 
     /// The initial root observation, without retrying a missing pathname.
-    pub(crate) fn acquired_rooted_fs(&self) -> Option<&sy::rooted_fs::RootedFs> {
+    pub(crate) fn acquired_rooted_fs(&self) -> Option<&rsy::rooted_fs::RootedFs> {
         self.rooted.get().map(std::convert::AsRef::as_ref)
     }
 
-    async fn destination_authority(&self) -> Result<&sy::rooted_fs::operand::DestinationRoot> {
+    async fn destination_authority(&self) -> Result<&rsy::rooted_fs::operand::DestinationRoot> {
         // Cache initial absence through its held ancestor too. A later Create
         // must acquire that original pending authority, never classify a fresh
         // replacement of an ancestor after preflight.
         let binding = self
             .binding
             .get_or_try_init(|| async {
-                let mut authority = sy::rooted_fs::operand::BoundDestination::open(
+                let mut authority = rsy::rooted_fs::operand::BoundDestination::open(
                     self.root.clone(),
-                    sy::rooted_fs::operand::SourceShape::Directory { basename: None },
+                    rsy::rooted_fs::operand::SourceShape::Directory { basename: None },
                 )
                 .await
                 .map_err(map_rooted_fs_error)?
@@ -199,7 +199,7 @@ impl LocalEndpoint {
         self,
     ) -> Result<(
         Self,
-        std::sync::Arc<dyn sy::engine::namespace::NamespaceQualification>,
+        std::sync::Arc<dyn rsy::engine::namespace::NamespaceQualification>,
     )> {
         let (bound, authority) = self
             .destination_authority()
@@ -219,7 +219,7 @@ impl LocalEndpoint {
     pub(crate) async fn rooted_fs(
         &self,
         create_root: bool,
-    ) -> Result<std::sync::Arc<sy::rooted_fs::RootedFs>> {
+    ) -> Result<std::sync::Arc<rsy::rooted_fs::RootedFs>> {
         let binding = self.destination_authority().await?;
         let rooted = self
             .rooted
@@ -232,8 +232,8 @@ impl LocalEndpoint {
                         .map_err(map_rooted_fs_error)?
                 } else {
                     match binding {
-                        sy::rooted_fs::operand::DestinationRoot::Present(rooted) => rooted.clone(),
-                        sy::rooted_fs::operand::DestinationRoot::Pending(_) => {
+                        rsy::rooted_fs::operand::DestinationRoot::Present(rooted) => rooted.clone(),
+                        rsy::rooted_fs::operand::DestinationRoot::Pending(_) => {
                             return Err(SyncError::Io(std::io::ErrorKind::NotFound.into()));
                         }
                     }
@@ -244,14 +244,14 @@ impl LocalEndpoint {
         Ok(std::sync::Arc::clone(rooted))
     }
 
-    fn relative_path(&self, path: &Path) -> Result<sy::engine::domain::RelativePath> {
+    fn relative_path(&self, path: &Path) -> Result<rsy::engine::domain::RelativePath> {
         let relative = if path.is_absolute() {
             path.strip_prefix(&self.root)
                 .map_err(|error| SyncError::Config(error.to_string()))?
         } else {
             path
         };
-        sy::engine::domain::RelativePath::new(relative.to_path_buf())
+        rsy::engine::domain::RelativePath::new(relative.to_path_buf())
             .map_err(|error| SyncError::Config(error.to_string()))
     }
 
@@ -259,11 +259,11 @@ impl LocalEndpoint {
         &self,
         path: &Path,
         read: impl FnOnce(
-                &sy::rooted_fs::RootedFs,
-                &sy::engine::domain::RelativePath,
-                sy::engine::domain::EntryKind,
-                sy::engine::domain::EntryIdentity,
-            ) -> sy::rooted_fs::Result<T>
+                &rsy::rooted_fs::RootedFs,
+                &rsy::engine::domain::RelativePath,
+                rsy::engine::domain::EntryKind,
+                rsy::engine::domain::EntryIdentity,
+            ) -> rsy::rooted_fs::Result<T>
             + Send
             + 'static,
     ) -> Result<T> {
@@ -308,43 +308,45 @@ fn file_metadata_from_fs(meta: &fs::Metadata) -> FileMetadata {
     }
 }
 
-fn rooted_expected_destination(expected: ExpectedDestination) -> sy::endpoint::ExpectedDestination {
+fn rooted_expected_destination(
+    expected: ExpectedDestination,
+) -> rsy::endpoint::ExpectedDestination {
     match expected {
-        ExpectedDestination::Absent => sy::endpoint::ExpectedDestination::Absent,
-        ExpectedDestination::Unchanged(identity) => sy::endpoint::ExpectedDestination::Unchanged(
-            sy::engine::domain::EntryIdentity::from_bytes(*identity.as_bytes()),
+        ExpectedDestination::Absent => rsy::endpoint::ExpectedDestination::Absent,
+        ExpectedDestination::Unchanged(identity) => rsy::endpoint::ExpectedDestination::Unchanged(
+            rsy::engine::domain::EntryIdentity::from_bytes(*identity.as_bytes()),
         ),
-        ExpectedDestination::SnapshotAtOpen => sy::endpoint::ExpectedDestination::SnapshotAtOpen,
-        ExpectedDestination::Unverified => sy::endpoint::ExpectedDestination::Unverified,
+        ExpectedDestination::SnapshotAtOpen => rsy::endpoint::ExpectedDestination::SnapshotAtOpen,
+        ExpectedDestination::Unverified => rsy::endpoint::ExpectedDestination::Unverified,
     }
 }
 
-pub(crate) fn map_rooted_fs_error(error: sy::rooted_fs::RootedFsError) -> SyncError {
+pub(crate) fn map_rooted_fs_error(error: rsy::rooted_fs::RootedFsError) -> SyncError {
     match error {
-        sy::rooted_fs::RootedFsError::Io(error) => SyncError::Io(error),
-        sy::rooted_fs::RootedFsError::SourceBindingChanged(path) => {
+        rsy::rooted_fs::RootedFsError::Io(error) => SyncError::Io(error),
+        rsy::rooted_fs::RootedFsError::SourceBindingChanged(path) => {
             SyncError::SourceChanged { path }
         }
-        sy::rooted_fs::RootedFsError::DestinationChanged(path)
-        | sy::rooted_fs::RootedFsError::StagingEntryChanged(path) => {
+        rsy::rooted_fs::RootedFsError::DestinationChanged(path)
+        | rsy::rooted_fs::RootedFsError::StagingEntryChanged(path) => {
             SyncError::DestinationChanged { path }
         }
-        sy::rooted_fs::RootedFsError::CommittedCleanupPending { path, reason } => {
+        rsy::rooted_fs::RootedFsError::CommittedCleanupPending { path, reason } => {
             SyncError::CommittedCleanupPending { path, reason }
         }
-        sy::rooted_fs::RootedFsError::CommittedParentChanged { path, reason } => {
+        rsy::rooted_fs::RootedFsError::CommittedParentChanged { path, reason } => {
             SyncError::CommittedParentChanged { path, reason }
         }
-        sy::rooted_fs::RootedFsError::CommittedFinalizationFailed { path, reason } => {
+        rsy::rooted_fs::RootedFsError::CommittedFinalizationFailed { path, reason } => {
             SyncError::CommittedFinalizationFailed { path, reason }
         }
-        sy::rooted_fs::RootedFsError::RootChanged(path) => SyncError::DestinationChanged { path },
+        rsy::rooted_fs::RootedFsError::RootChanged(path) => SyncError::DestinationChanged { path },
         error => SyncError::Io(std::io::Error::other(error)),
     }
 }
 
 pub(crate) fn verify_committed_root(
-    rooted: &sy::rooted_fs::RootedFs,
+    rooted: &rsy::rooted_fs::RootedFs,
     destination: &Path,
 ) -> Result<()> {
     rooted
@@ -357,11 +359,11 @@ pub(crate) fn verify_committed_root(
 }
 
 fn map_rooted_read_error(
-    rooted: &sy::rooted_fs::RootedFs,
-    error: sy::rooted_fs::RootedFsError,
+    rooted: &rsy::rooted_fs::RootedFs,
+    error: rsy::rooted_fs::RootedFsError,
 ) -> SyncError {
     if rooted.is_local_source_authority()
-        && matches!(error, sy::rooted_fs::RootedFsError::RootChanged(_))
+        && matches!(error, rsy::rooted_fs::RootedFsError::RootChanged(_))
     {
         SyncError::Io(std::io::Error::other(error))
     } else {
@@ -372,7 +374,7 @@ fn map_rooted_read_error(
 #[derive(Debug, Clone, Copy)]
 enum DestinationObservation {
     Absent,
-    Identified(sy::engine::domain::EntryIdentity),
+    Identified(rsy::engine::domain::EntryIdentity),
     Unidentified,
 }
 
@@ -451,9 +453,9 @@ pub(crate) async fn verify_destination_expectation(
 
 /// Local staged writes share the rooted endpoint transaction owner.
 pub(crate) struct LocalStagedWriter {
-    rooted: std::sync::Arc<sy::rooted_fs::RootedFs>,
+    rooted: std::sync::Arc<rsy::rooted_fs::RootedFs>,
     destination_path: PathBuf,
-    staged: Option<sy::rooted_fs::RootedStagedFile>,
+    staged: Option<rsy::rooted_fs::RootedStagedFile>,
     admission: std::sync::Arc<crate::endpoint::publication::PublicationAdmission>,
     file: Option<tokio::fs::File>,
     #[cfg(test)]
@@ -489,8 +491,8 @@ impl Drop for PublicationCancellationGuard {
 /// just the name/identity in a finalized receipt.
 #[derive(Debug)]
 struct LocalPendingPublication {
-    published: sy::rooted_fs::RootedPublishedFile,
-    rooted: std::sync::Arc<sy::rooted_fs::RootedFs>,
+    published: rsy::rooted_fs::RootedPublishedFile,
+    rooted: std::sync::Arc<rsy::rooted_fs::RootedFs>,
     destination_path: PathBuf,
     cancellation_guard: PublicationCancellationGuard,
 }
@@ -500,7 +502,7 @@ impl PendingPublication for LocalPendingPublication {
     async fn finalize(
         self: Box<Self>,
         flags: Option<u32>,
-    ) -> Result<sy::rooted_fs::PublishedFileProof> {
+    ) -> Result<rsy::rooted_fs::PublishedFileProof> {
         let Self {
             published,
             rooted,
@@ -530,8 +532,8 @@ impl PendingPublication for LocalPendingPublication {
 
 impl LocalStagedWriter {
     pub(crate) async fn new(
-        rooted: std::sync::Arc<sy::rooted_fs::RootedFs>,
-        relative: sy::engine::domain::RelativePath,
+        rooted: std::sync::Arc<rsy::rooted_fs::RootedFs>,
+        relative: rsy::engine::domain::RelativePath,
         expectation: ExpectedDestination,
         destination_path: PathBuf,
     ) -> Result<Self> {
@@ -574,7 +576,7 @@ impl LocalStagedWriter {
     pub(crate) async fn with_staged<T, F>(&mut self, operation: F) -> Result<T>
     where
         T: Send + 'static,
-        F: FnOnce(&mut sy::rooted_fs::RootedStagedFile) -> sy::rooted_fs::Result<T>
+        F: FnOnce(&mut rsy::rooted_fs::RootedStagedFile) -> rsy::rooted_fs::Result<T>
             + Send
             + 'static,
     {
@@ -595,7 +597,7 @@ impl LocalStagedWriter {
     /// Transfer the ORIGINAL creator and protected anchor to the native group
     /// owner. The async duplicate is drained and dropped, never reopened from a
     /// visible member; conversion itself does not authorize publication.
-    pub(crate) async fn into_group(mut self) -> Result<sy::rooted_fs::RootedStagedGroup> {
+    pub(crate) async fn into_group(mut self) -> Result<rsy::rooted_fs::RootedStagedGroup> {
         if let Err(operation) = self.file_mut()?.flush().await {
             return match Box::new(self).abort().await {
                 Ok(()) => Err(SyncError::Io(operation)),
@@ -1008,7 +1010,7 @@ impl StagedWriter for LocalStagedWriter {
             .modified
             .map(|modified| {
                 let time = filetime::FileTime::from_system_time(modified);
-                sy::engine::domain::Timestamp::new(time.seconds(), time.nanoseconds())
+                rsy::engine::domain::Timestamp::new(time.seconds(), time.nanoseconds())
                     .map_err(|error| SyncError::Config(error.to_string()))
             })
             .transpose()?;
@@ -1114,7 +1116,7 @@ impl StagedWriter for LocalStagedWriter {
         let cancellation_guard =
             PublicationCancellationGuard::new(std::sync::Arc::clone(&self.admission));
         let worker =
-            tokio::task::spawn_blocking(move || -> Result<sy::rooted_fs::RootedPublishedFile> {
+            tokio::task::spawn_blocking(move || -> Result<rsy::rooted_fs::RootedPublishedFile> {
                 if let Err(operation) = rooted.verify_root_path_blocking() {
                     let operation = map_rooted_fs_error(operation);
                     return match staged.abort() {
@@ -1246,7 +1248,10 @@ impl Endpoint for LocalEndpoint {
         #[cfg(unix)]
         {
             return self
-                .with_observed_entry(path, sy::rooted_fs::RootedFs::read_observed_xattrs_blocking)
+                .with_observed_entry(
+                    path,
+                    rsy::rooted_fs::RootedFs::read_observed_xattrs_blocking,
+                )
                 .await;
         }
 
@@ -1265,8 +1270,8 @@ impl Endpoint for LocalEndpoint {
             let xattrs = xattrs.to_vec();
             return self
                 .with_observed_entry(path, move |rooted, path, kind, identity| {
-                    if kind == sy::engine::domain::EntryKind::Directory {
-                        return Err(sy::rooted_fs::RootedFsError::UnobservedDirectoryMutation);
+                    if kind == rsy::engine::domain::EntryKind::Directory {
+                        return Err(rsy::rooted_fs::RootedFsError::UnobservedDirectoryMutation);
                     }
                     rooted
                         .apply_observed_preservation_blocking(
@@ -1275,7 +1280,7 @@ impl Endpoint for LocalEndpoint {
                             identity,
                             None,
                             None,
-                            &sy::rooted_fs::MetadataPreservation {
+                            &rsy::rooted_fs::MetadataPreservation {
                                 xattrs: Some(&xattrs),
                                 ..Default::default()
                             },
@@ -1298,7 +1303,7 @@ impl Endpoint for LocalEndpoint {
         #[cfg(all(unix, feature = "acl"))]
         {
             return self
-                .with_observed_entry(path, sy::rooted_fs::RootedFs::read_observed_acl_blocking)
+                .with_observed_entry(path, rsy::rooted_fs::RootedFs::read_observed_acl_blocking)
                 .await;
         }
 
@@ -1317,8 +1322,8 @@ impl Endpoint for LocalEndpoint {
             let acl = acl.to_string();
             return self
                 .with_observed_entry(path, move |rooted, path, kind, identity| {
-                    if kind == sy::engine::domain::EntryKind::Directory {
-                        return Err(sy::rooted_fs::RootedFsError::UnobservedDirectoryMutation);
+                    if kind == rsy::engine::domain::EntryKind::Directory {
+                        return Err(rsy::rooted_fs::RootedFsError::UnobservedDirectoryMutation);
                     }
                     rooted
                         .apply_observed_preservation_blocking(
@@ -1327,7 +1332,7 @@ impl Endpoint for LocalEndpoint {
                             identity,
                             None,
                             None,
-                            &sy::rooted_fs::MetadataPreservation {
+                            &rsy::rooted_fs::MetadataPreservation {
                                 acl: Some(&acl),
                                 ..Default::default()
                             },
@@ -1352,7 +1357,7 @@ impl Endpoint for LocalEndpoint {
             return self
                 .with_observed_entry(
                     path,
-                    sy::rooted_fs::RootedFs::read_observed_bsd_flags_blocking,
+                    rsy::rooted_fs::RootedFs::read_observed_bsd_flags_blocking,
                 )
                 .await
                 .map(Some);
@@ -1372,8 +1377,8 @@ impl Endpoint for LocalEndpoint {
         {
             return self
                 .with_observed_entry(path, move |rooted, path, kind, identity| {
-                    if kind == sy::engine::domain::EntryKind::Directory {
-                        return Err(sy::rooted_fs::RootedFsError::UnobservedDirectoryMutation);
+                    if kind == rsy::engine::domain::EntryKind::Directory {
+                        return Err(rsy::rooted_fs::RootedFsError::UnobservedDirectoryMutation);
                     }
                     rooted
                         .apply_observed_preservation_blocking(
@@ -1382,7 +1387,7 @@ impl Endpoint for LocalEndpoint {
                             identity,
                             None,
                             None,
-                            &sy::rooted_fs::MetadataPreservation {
+                            &rsy::rooted_fs::MetadataPreservation {
                                 bsd_flags: Some(flags),
                                 ..Default::default()
                             },
@@ -1411,7 +1416,7 @@ impl Endpoint for LocalEndpoint {
     async fn open_native_file(&self, path: &Path) -> Result<Option<std::fs::File>> {
         #[cfg(unix)]
         {
-            let relative = sy::engine::domain::RelativePath::new(path.to_path_buf())
+            let relative = rsy::engine::domain::RelativePath::new(path.to_path_buf())
                 .map_err(|error| SyncError::Config(error.to_string()))?;
             // Unlike destination preparation, opening a source must not create
             // a missing root as a side effect.
@@ -1454,7 +1459,7 @@ impl Endpoint for LocalEndpoint {
     async fn open_native_file_following(&self, path: &Path) -> Result<Option<std::fs::File>> {
         #[cfg(unix)]
         {
-            let relative = sy::engine::domain::RelativePath::new(path.to_path_buf())
+            let relative = rsy::engine::domain::RelativePath::new(path.to_path_buf())
                 .map_err(|error| SyncError::Config(error.to_string()))?;
             let full_path = self.resolve(relative.as_path());
             let rooted = self.rooted_fs(false).await?;
@@ -1514,7 +1519,7 @@ impl Endpoint for LocalEndpoint {
         if !request.xattrs && !request.acl {
             return Ok(crate::endpoint::io::Preservation::default());
         }
-        let relative = sy::engine::domain::RelativePath::new(path.to_path_buf())
+        let relative = rsy::engine::domain::RelativePath::new(path.to_path_buf())
             .map_err(|error| SyncError::Config(error.to_string()))?;
         let file = file.try_clone()?;
         let rooted = self.rooted_fs(false).await?;
@@ -1570,7 +1575,7 @@ impl Endpoint for LocalEndpoint {
         path: &Path,
         expected_destination: ExpectedDestination,
     ) -> Result<Box<dyn StagedWriter>> {
-        let relative = sy::engine::domain::RelativePath::new(path.to_path_buf())
+        let relative = rsy::engine::domain::RelativePath::new(path.to_path_buf())
             .map_err(|error| SyncError::Config(error.to_string()))?;
         let rooted = self.rooted_fs(true).await?;
         let destination_path = self.root.join(relative.as_path());
@@ -1589,11 +1594,11 @@ impl Endpoint for LocalEndpoint {
         self.with_observed_entry(path, |rooted, path, kind, identity| {
             let outcome = rooted.remove_destination_blocking(
                 path,
-                kind == sy::engine::domain::EntryKind::Directory,
+                kind == rsy::engine::domain::EntryKind::Directory,
                 Some(identity),
             )?;
             outcome.verify_local_root(rooted, path)?;
-            if matches!(outcome, sy::rooted_fs::RemovalOutcome::RetainedNonempty) {
+            if matches!(outcome, rsy::rooted_fs::RemovalOutcome::RetainedNonempty) {
                 return Err(std::io::Error::from(std::io::ErrorKind::DirectoryNotEmpty).into());
             }
             Ok(())
@@ -1623,7 +1628,7 @@ impl Endpoint for LocalEndpoint {
     ) -> Result<()> {
         #[cfg(unix)]
         {
-            let rel = sy::engine::domain::RelativePath::new(dest.to_path_buf())
+            let rel = rsy::engine::domain::RelativePath::new(dest.to_path_buf())
                 .map_err(|error| SyncError::Config(error.to_string()))?;
 
             let rooted = self.rooted_fs(true).await?;
@@ -1663,7 +1668,7 @@ impl Endpoint for LocalEndpoint {
             rooted.verify_root_path_blocking()?;
             rooted.create_hardlink_blocking(&source, &dest)?;
             verify_committed_root(&rooted, dest.as_path()).map_err(|error| {
-                sy::rooted_fs::RootedFsError::CommittedFinalizationFailed {
+                rsy::rooted_fs::RootedFsError::CommittedFinalizationFailed {
                     path: dest.as_path().to_path_buf(),
                     reason: error.to_string(),
                 }
@@ -1816,7 +1821,7 @@ mod tests {
 
     #[test]
     fn rooted_io_error_keeps_its_kind_when_mapped() {
-        let operation = sy::rooted_fs::RootedFsError::Io(std::io::Error::new(
+        let operation = rsy::rooted_fs::RootedFsError::Io(std::io::Error::new(
             std::io::ErrorKind::UnexpectedEof,
             "source changed during sparse copy",
         ));
@@ -1891,7 +1896,7 @@ mod tests {
             let mut rooted = (*endpoint.rooted_fs(true).await.unwrap()).clone();
             rooted.bind_session_mutations(session, false);
             let rooted = std::sync::Arc::new(rooted);
-            let relative = sy::engine::domain::RelativePath::new(PathBuf::from("file")).unwrap();
+            let relative = rsy::engine::domain::RelativePath::new(PathBuf::from("file")).unwrap();
             let mut writer = LocalStagedWriter::new(
                 std::sync::Arc::clone(&rooted),
                 relative,
@@ -1936,7 +1941,7 @@ mod tests {
             // Cancellation belongs to this writer, not the shared session.
             let mut independent = LocalStagedWriter::new(
                 rooted,
-                sy::engine::domain::RelativePath::new(PathBuf::from("independent")).unwrap(),
+                rsy::engine::domain::RelativePath::new(PathBuf::from("independent")).unwrap(),
                 ExpectedDestination::Absent,
                 dir.path().join("independent"),
             )
@@ -2112,7 +2117,7 @@ mod tests {
         router.shutdown().await.unwrap();
         assert!(matches!(result, Err(SyncError::Io(error))
             if matches!(error.get_ref().and_then(|e| e.downcast_ref()),
-                Some(sy::rooted_fs::RootedFsError::CommitCancelled))));
+                Some(rsy::rooted_fs::RootedFsError::CommitCancelled))));
         assert_eq!(fs::read(dir.path().join("file")).unwrap(), b"old");
         assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
     }
@@ -2132,7 +2137,7 @@ mod tests {
         let rooted = std::sync::Arc::new(rooted);
         let mut writer = LocalStagedWriter::new(
             std::sync::Arc::clone(&rooted),
-            sy::engine::domain::RelativePath::new(PathBuf::from("file")).unwrap(),
+            rsy::engine::domain::RelativePath::new(PathBuf::from("file")).unwrap(),
             ExpectedDestination::SnapshotAtOpen,
             dir.path().join("file"),
         )
@@ -2177,7 +2182,7 @@ mod tests {
 
         let mut independent = LocalStagedWriter::new(
             rooted,
-            sy::engine::domain::RelativePath::new(PathBuf::from("independent")).unwrap(),
+            rsy::engine::domain::RelativePath::new(PathBuf::from("independent")).unwrap(),
             ExpectedDestination::Absent,
             dir.path().join("independent"),
         )
@@ -2325,7 +2330,7 @@ mod tests {
                 let rooted = std::sync::Arc::new(rooted);
                 let mut writer = LocalStagedWriter::new(
                     std::sync::Arc::clone(&rooted),
-                    sy::engine::domain::RelativePath::new(PathBuf::from("file")).unwrap(),
+                    rsy::engine::domain::RelativePath::new(PathBuf::from("file")).unwrap(),
                     ExpectedDestination::Absent,
                     dir.path().join("file"),
                 )
@@ -2369,7 +2374,7 @@ mod tests {
 
                 let mut independent = LocalStagedWriter::new(
                     rooted,
-                    sy::engine::domain::RelativePath::new(PathBuf::from("independent")).unwrap(),
+                    rsy::engine::domain::RelativePath::new(PathBuf::from("independent")).unwrap(),
                     ExpectedDestination::Absent,
                     dir.path().join("independent"),
                 )
@@ -2410,7 +2415,7 @@ mod tests {
         rooted.bind_session_mutations(std::sync::Arc::clone(&admission), false);
         let mut writer = LocalStagedWriter::new(
             std::sync::Arc::new(rooted),
-            sy::engine::domain::RelativePath::new(PathBuf::from("file")).unwrap(),
+            rsy::engine::domain::RelativePath::new(PathBuf::from("file")).unwrap(),
             ExpectedDestination::Absent,
             dir.path().join("file"),
         )
@@ -2597,7 +2602,7 @@ mod tests {
                 entry
                     .file_name()
                     .to_string_lossy()
-                    .starts_with(".sy-stage-")
+                    .starts_with(".rsy-stage-")
                     .then(|| entry.path())
             })
             .unwrap();

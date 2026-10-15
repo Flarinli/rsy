@@ -254,16 +254,16 @@ impl FilterEngine {
         Ok(())
     }
 
-    /// Load ignore template from ~/.config/sy/templates/
+    /// Load ignore template from ~/.config/rsy/templates/
     ///
-    /// Template names are resolved to ~/.config/sy/templates/{name}.syignore
-    /// Example: "rust" -> ~/.config/sy/templates/rust.syignore
+    /// Template names are resolved to ~/.config/rsy/templates/{name}.rsyignore
+    /// Example: "rust" -> ~/.config/rsy/templates/rust.rsyignore
     pub fn add_template(&mut self, template_name: &str) -> Result<()> {
         let config_dir = dirs::config_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
 
-        let template_dir = config_dir.join("sy").join("templates");
-        let template_file = template_dir.join(format!("{}.syignore", template_name));
+        let template_dir = config_dir.join("rsy").join("templates");
+        let template_file = template_dir.join(format!("{}.rsyignore", template_name));
 
         if !template_file.exists() {
             anyhow::bail!(
@@ -277,17 +277,17 @@ impl FilterEngine {
             .with_context(|| format!("Failed to load template '{}'", template_name))
     }
 
-    /// Load .syignore file if it exists in the given directory
+    /// Load .rsyignore file if it exists in the given directory
     ///
     /// Returns Ok(true) if file was loaded, Ok(false) if file doesn't exist
-    pub fn add_syignore_if_exists(&mut self, directory: &Path) -> Result<bool> {
-        let syignore_path = directory.join(".syignore");
+    pub fn add_rsyignore_if_exists(&mut self, directory: &Path) -> Result<bool> {
+        let rsyignore_path = directory.join(".rsyignore");
 
-        if !syignore_path.exists() {
+        if !rsyignore_path.exists() {
             return Ok(false);
         }
 
-        self.add_rules_from_file(&syignore_path)?;
+        self.add_rules_from_file(&rsyignore_path)?;
         Ok(true)
     }
 

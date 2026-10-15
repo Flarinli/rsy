@@ -1,17 +1,17 @@
 #![cfg(unix)]
 
 use futures::TryStreamExt;
+use rsy::engine::controller::SyncPlanExecutor;
+use rsy::engine::domain::{ContentComparison, SyncOp};
+use rsy::engine::planner::ExecutionPolicy;
+use rsy::engine::scan::ScanRequest;
+use rsy::engine::scheduler::{ResourceBudget, Scheduler};
+use rsy::engine::work::WorkResult;
+use rsy::remote::local_executor::LocalSyncExecutor;
+use rsy::remote::pull::RemotePullExecutor;
+use rsy::remote::router::RouterConfig;
+use rsy::remote::runtime::ClientRemoteSession;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use sy::engine::controller::SyncPlanExecutor;
-use sy::engine::domain::{ContentComparison, SyncOp};
-use sy::engine::planner::ExecutionPolicy;
-use sy::engine::scan::ScanRequest;
-use sy::engine::scheduler::{ResourceBudget, Scheduler};
-use sy::engine::work::WorkResult;
-use sy::remote::local_executor::LocalSyncExecutor;
-use sy::remote::pull::RemotePullExecutor;
-use sy::remote::router::RouterConfig;
-use sy::remote::runtime::ClientRemoteSession;
 
 #[tokio::test]
 async fn quick_unchanged_local_and_pull_preservation_keeps_destination_payload_and_inode() {
@@ -45,7 +45,7 @@ async fn quick_unchanged_local_and_pull_preservation_keeps_destination_payload_a
         }
         let mut request = ScanRequest::default();
         request.metadata.unix_mode = true;
-        let authority = sy::endpoint::source_root::SourceRoot::open(source.path().into())
+        let authority = rsy::endpoint::source_root::SourceRoot::open(source.path().into())
             .await
             .unwrap();
         let source_entry = authority
@@ -55,7 +55,7 @@ async fn quick_unchanged_local_and_pull_preservation_keeps_destination_payload_a
             .unwrap()
             .remove(0);
         let mut destination_entries =
-            sy::endpoint::local_entry_scan::local_entry_stream(destination.path().into(), request);
+            rsy::endpoint::local_entry_scan::local_entry_stream(destination.path().into(), request);
         let destination_entry = destination_entries.try_next().await.unwrap().unwrap();
         destination_entries.close().await.unwrap();
         let before = std::fs::metadata(&destination_path).unwrap();
@@ -77,7 +77,7 @@ async fn quick_unchanged_local_and_pull_preservation_keeps_destination_payload_a
         let result = if pull {
             let (client_io, server_io) = tokio::io::duplex(64 * 1024);
             let (reader, writer) = tokio::io::split(server_io);
-            let server = tokio::spawn(sy::remote::serve::serve_transport(
+            let server = tokio::spawn(rsy::remote::serve::serve_transport(
                 reader,
                 writer,
                 RouterConfig::default(),
@@ -86,7 +86,7 @@ async fn quick_unchanged_local_and_pull_preservation_keeps_destination_payload_a
             let client = ClientRemoteSession::connect(
                 reader,
                 writer,
-                sy::protocol::Operation::Pull,
+                rsy::protocol::Operation::Pull,
                 source.path(),
                 RouterConfig::default(),
             )
@@ -106,7 +106,7 @@ async fn quick_unchanged_local_and_pull_preservation_keeps_destination_payload_a
             let work = executor.lower(operation, policy).unwrap().unwrap();
             assert!(matches!(
                 work.action(),
-                sy::remote::pull::RemotePullAction::ApplyMetadata {
+                rsy::remote::pull::RemotePullAction::ApplyMetadata {
                     unix_mode: Some(0o640),
                     ..
                 }
@@ -123,7 +123,7 @@ async fn quick_unchanged_local_and_pull_preservation_keeps_destination_payload_a
         } else {
             let executor = LocalSyncExecutor::new(
                 authority,
-                sy::endpoint::local::LocalEndpoint::new(destination.path().into()),
+                rsy::endpoint::local::LocalEndpoint::new(destination.path().into()),
                 scheduler,
             )
             .with_xattrs(true)
@@ -132,7 +132,7 @@ async fn quick_unchanged_local_and_pull_preservation_keeps_destination_payload_a
             let work = executor.lower(operation, policy).unwrap().unwrap();
             assert!(matches!(
                 work.action(),
-                sy::remote::local_executor::LocalSyncAction::ApplyMetadata {
+                rsy::remote::local_executor::LocalSyncAction::ApplyMetadata {
                     unix_mode: Some(0o640),
                     ..
                 }

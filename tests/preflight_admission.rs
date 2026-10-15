@@ -7,7 +7,7 @@ use std::process::{Command, Output};
 fn sync(source: &Path, destination: &Path, flags: &[&str]) -> Output {
     let mut source = source.as_os_str().to_os_string();
     source.push("/");
-    Command::new(env!("CARGO_BIN_EXE_sy"))
+    Command::new(env!("CARGO_BIN_EXE_rsy"))
         .arg(source)
         .arg(destination)
         .args(flags)
