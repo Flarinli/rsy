@@ -297,7 +297,7 @@ fn help_version_spec_and_completions_share_declarations() {
     for flag in ["-V", "--version"] {
         let result = binary(&[flag]);
         assert!(result.status.success());
-        assert_eq!(result.stdout, b"sy 0.4.1\n");
+        assert_eq!(result.stdout, b"rsy 0.4.1\n");
         assert!(result.stderr.is_empty());
     }
     let spec = binary(&["__usage_spec__"]);

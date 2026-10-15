@@ -1807,12 +1807,16 @@ mod tests {
                 Path::new(NAME),
                 &fixture.dest_endpoint(),
                 Path::new(destination_name),
-                options(identity, true),
+                TransferOptions {
+                    verify: true,
+                    ..options(identity, true)
+                },
             )
             .await
             .unwrap();
 
             assert_eq!(result.strategy, TransferStrategy::NativeWholeCopy);
+            assert_eq!(result.verification, VerificationStatus::Verified);
             assert_eq!(std::fs::read(destination).unwrap(), b"NEW!");
             let mut source = crate::engine::domain::Entry::file(
                 RelativePath::new(NAME).unwrap(),
