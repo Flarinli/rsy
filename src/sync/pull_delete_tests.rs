@@ -1,19 +1,19 @@
 //! Pull deletion exercises the real remote policy handler and common controller.
 use super::*;
-use sy::engine::delete_plan::DeleteLimit;
-use sy::protocol::Operation;
-use sy::remote::runtime::ClientRemoteSession;
+use rsy::engine::delete_plan::DeleteLimit;
+use rsy::protocol::Operation;
+use rsy::remote::runtime::ClientRemoteSession;
 use tempfile::TempDir;
 
 async fn session(
     root: &Path,
 ) -> (
     ClientRemoteSession,
-    tokio::task::JoinHandle<sy::remote::serve::Result<()>>,
+    tokio::task::JoinHandle<rsy::remote::serve::Result<()>>,
 ) {
     let (client, server) = tokio::io::duplex(64 * 1024);
     let (read, write) = tokio::io::split(server);
-    let server = tokio::spawn(sy::remote::serve::serve_transport(
+    let server = tokio::spawn(rsy::remote::serve::serve_transport(
         read,
         write,
         Default::default(),
@@ -141,7 +141,7 @@ async fn pull_delete_threshold_fails_before_copy_or_delete() {
 
 #[tokio::test]
 async fn pull_delete_missing_policy_reply_prevents_every_effect() {
-    use sy::remote::runtime::{IncomingRequest, ServerRemoteSession};
+    use rsy::remote::runtime::{IncomingRequest, ServerRemoteSession};
     let source = TempDir::new().unwrap();
     let destination = TempDir::new().unwrap();
     std::fs::write(source.path().join("new"), b"source").unwrap();

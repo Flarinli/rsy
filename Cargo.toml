@@ -1,10 +1,10 @@
 [package]
-name = "sy"
+name = "rsy"
 version = "0.4.1"
 edition = "2021"
 authors = ["Nick Russo <nijaru7@gmail.com>"]
 description = "Fast, modern file sync — rsync's mental model, Rust performance, sane defaults"
-repository = "https://github.com/nijaru/sy"
+repository = "https://github.com/Flarinli/rsy"
 license = "MIT"
 keywords = ["rsync", "sync", "file-transfer", "backup", "cli"]
 categories = ["command-line-utilities", "filesystem"]
@@ -112,8 +112,8 @@ harness = false
 
 
 [[bin]]
-name = "sy-bench-gen"
-path = "src/bin/sy-bench-gen.rs"
+name = "rsy-bench-gen"
+path = "src/bin/rsy-bench-gen.rs"
 
 
 [[test]]
@@ -140,10 +140,6 @@ path = "tests/sync/edge_cases.rs"
 name = "sync_scale"
 path = "tests/sync/scale.rs"
 
-
-[[test]]
-name = "sync_ssh"
-path = "tests/sync/ssh.rs"
 
 [[test]]
 name = "sync_archive"

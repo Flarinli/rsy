@@ -1,6 +1,6 @@
-# sy 0.5 architecture
+# rsy 0.5 architecture
 
-`sy` 0.5 is a clean architectural cut, not an incremental migration of the 0.4 internals. Preserve useful user-facing semantics, but do not preserve internal APIs, transport layers, wire compatibility, or implementation structure solely for compatibility.
+`rsy` 0.5 is a clean architectural cut, not an incremental migration of the 0.4 internals. Preserve useful user-facing semantics, but do not preserve internal APIs, transport layers, wire compatibility, or implementation structure solely for compatibility.
 
 The 0.5 scope is one bounded synchronization engine for local filesystems and SSH in both directions, including confined source-link following, transactional type transitions, hardlink preservation, and verified deferred source removal. Object stores, bisync, automatic agent bootstrap, and functional Windows synchronization are outside this release. Windows compilation is not a filesystem capability claim.
 
@@ -9,7 +9,7 @@ This document describes the **target**, not a claim that every contract is imple
 ## Design principles
 
 1. **One engine.** Local and remote synchronization share scanning, reconciliation, planning, scheduling, integrity, and safety semantics.
-2. **One binary.** `sy` acts as both the user-facing client and the private remote agent. There is no `sy-remote` in 0.5.
+2. **One binary.** `rsy` acts as both the user-facing client and the private remote agent. There is no `sy-remote` in 0.5.
 3. **Bounded memory.** File size and tree size must not imply proportional resident memory on the common path.
 4. **Transactional visibility.** Destination mutations are staged and verified before commit whenever the backend can support atomic replacement.
 5. **Capabilities, not endpoint branches.** Transfer policy is chosen from explicit backend capabilities and workload characteristics.
@@ -372,7 +372,7 @@ Detect sparse layout on demand after the sparse strategy is selected. Preserve h
 0.5 uses external OpenSSH as the default transport:
 
 ```text
-ssh -T <host> sy __serve
+ssh -T <host> rsy __serve
 ```
 
 Benefits:
@@ -696,7 +696,7 @@ alongside platform-native builds where useful. CI verifies the musl artifacts ar
 
 A later bootstrap layer may make remote installation automatic:
 
-1. try `sy __serve` on the remote;
+1. try `rsy __serve` on the remote;
 2. negotiate protocol/build compatibility;
 3. if unavailable, detect remote OS/architecture;
 4. obtain the matching trusted static agent;

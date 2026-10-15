@@ -1,13 +1,13 @@
 use anyhow::{Context as _, Result};
 use colored::Colorize;
-use sy::cli::{self, Cli, VerifyMode};
-use sy::config::Config;
-use sy::filter::FilterEngine;
-use sy::hooks::{HookContext, HookExecutor, HookType};
-use sy::path::SyncPath;
-use sy::resource::format_bytes;
-use sy::sync;
-use sy::sync::session::{EndpointPair, SyncSession};
+use rsy::cli::{self, Cli, VerifyMode};
+use rsy::config::Config;
+use rsy::filter::FilterEngine;
+use rsy::hooks::{HookContext, HookExecutor, HookType};
+use rsy::path::SyncPath;
+use rsy::resource::format_bytes;
+use rsy::sync;
+use rsy::sync::session::{EndpointPair, SyncSession};
 use tracing_subscriber::{fmt, EnvFilter};
 
 #[tokio::main]
@@ -27,7 +27,7 @@ async fn main() {
             eprintln!("Error: __serve does not accept command-line arguments");
             std::process::exit(2);
         }
-        if let Err(error) = sy::remote::serve::run_stdio().await {
+        if let Err(error) = rsy::remote::serve::run_stdio().await {
             eprintln!("Error: {error}");
             std::process::exit(1);
         }
@@ -159,7 +159,7 @@ async fn run(cli: &mut Cli) -> Result<()> {
 
     // Print header (skip if JSON mode)
     if !cli.quiet && !cli.json {
-        println!("sy v{}", env!("CARGO_PKG_VERSION"));
+        println!("rsy v{}", env!("CARGO_PKG_VERSION"));
         println!("Syncing {} → {}", source, destination);
 
         if cli.dry_run {
@@ -290,7 +290,7 @@ async fn run(cli: &mut Cli) -> Result<()> {
         }
     }
 
-    // Load .syignore from source directory (if local)
+    // Load .rsyignore from source directory (if local)
     if source.is_local() {
         let source_dir =
             if std::fs::symlink_metadata(source.path()).is_ok_and(|metadata| !metadata.is_dir()) {
@@ -299,17 +299,17 @@ async fn run(cli: &mut Cli) -> Result<()> {
                 source.path()
             };
 
-        match filter_engine.add_syignore_if_exists(source_dir) {
+        match filter_engine.add_rsyignore_if_exists(source_dir) {
             Ok(true) => {
                 if !cli.quiet && !cli.json {
-                    tracing::info!("Loaded .syignore from {}", source_dir.display());
+                    tracing::info!("Loaded .rsyignore from {}", source_dir.display());
                 }
             }
             Ok(false) => {
-                // No .syignore file, that's fine
+                // No .rsyignore file, that's fine
             }
             Err(e) => {
-                tracing::warn!("Failed to load .syignore: {}", e);
+                tracing::warn!("Failed to load .rsyignore: {}", e);
             }
         }
     }
@@ -319,7 +319,7 @@ async fn run(cli: &mut Cli) -> Result<()> {
     if cli.preserve_acls {
         anyhow::bail!(
             r#"ACL preservation requires the 'acl' feature.
-Install sy from crates.io with: cargo install sy --features acl
+Install rsy from crates.io with: cargo install rsy --features acl
 Or install from local source with: cargo install --path . --features acl"#
         );
     }
@@ -435,7 +435,7 @@ Or install from local source with: cargo install --path . --features acl"#
     // Verify-only mode
     if cli.verify == VerifyMode::Only {
         if !cli.quiet && !cli.json {
-            println!("sy v{}", env!("CARGO_PKG_VERSION"));
+            println!("rsy v{}", env!("CARGO_PKG_VERSION"));
             println!("Verifying {} ↔ {}\n", source, destination);
         }
 
@@ -445,7 +445,7 @@ Or install from local source with: cargo install --path . --features acl"#
 
         // JSON output
         if cli.json {
-            use sy::sync::output::{SyncEvent, VerificationError};
+            use rsy::sync::output::{SyncEvent, VerificationError};
 
             let errors_json: Vec<VerificationError> = result
                 .errors

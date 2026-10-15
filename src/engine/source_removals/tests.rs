@@ -632,7 +632,7 @@ fn continuation_state_corruption_is_terminal_even_for_other_and_missing_keys() {
 #[cfg(unix)]
 #[test]
 fn aliases_replay_under_low_fd_limit_with_one_continuation_per_identity() {
-    const CHILD: &str = "SY_REMOVAL_RESOURCE_CHILD";
+    const CHILD: &str = "RSY_REMOVAL_RESOURCE_CHILD";
     if std::env::var_os(CHILD).is_none() {
         let result = std::process::Command::new("sh").args([
             "-c", "ulimit -n 32; exec \"$1\" --exact engine::source_removals::tests::aliases_replay_under_low_fd_limit_with_one_continuation_per_identity --nocapture", "source-removal-resource-test",

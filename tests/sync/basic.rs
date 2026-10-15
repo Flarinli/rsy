@@ -8,7 +8,7 @@ use std::process::Command;
 use tempfile::TempDir;
 
 fn sy_bin() -> String {
-    env!("CARGO_BIN_EXE_sy").to_string()
+    env!("CARGO_BIN_EXE_rsy").to_string()
 }
 
 fn set_mtime(path: impl AsRef<std::path::Path>, seconds: i64) {
@@ -485,8 +485,8 @@ fn test_cache_flags_removed() {
 // These test rsync-compatible trailing slash semantics
 
 fn compute_test_destination(
-    source: &sy::path::SyncPath,
-    dest: &sy::path::SyncPath,
+    source: &rsy::path::SyncPath,
+    dest: &rsy::path::SyncPath,
 ) -> std::path::PathBuf {
     let source_path = source.path();
 
@@ -507,24 +507,24 @@ fn compute_test_destination(
 #[test]
 fn test_syncpath_trailing_slash_detection() {
     // Test trailing slash detection for local paths
-    let path_without = sy::path::SyncPath::parse("/home/user/mydir");
+    let path_without = rsy::path::SyncPath::parse("/home/user/mydir");
     assert!(!path_without.has_trailing_slash());
 
-    let path_with = sy::path::SyncPath::parse("/home/user/mydir/");
+    let path_with = rsy::path::SyncPath::parse("/home/user/mydir/");
     assert!(path_with.has_trailing_slash());
 
     // Test remote paths
-    let remote_without = sy::path::SyncPath::parse("user@host:/path/to/dir");
+    let remote_without = rsy::path::SyncPath::parse("user@host:/path/to/dir");
     assert!(!remote_without.has_trailing_slash());
 
-    let remote_with = sy::path::SyncPath::parse("user@host:/path/to/dir/");
+    let remote_with = rsy::path::SyncPath::parse("user@host:/path/to/dir/");
     assert!(remote_with.has_trailing_slash());
 }
 
 #[test]
 fn test_destination_computation_without_trailing_slash() {
-    let source = sy::path::SyncPath::parse("/a/myproject");
-    let dest = sy::path::SyncPath::parse("/target");
+    let source = rsy::path::SyncPath::parse("/a/myproject");
+    let dest = rsy::path::SyncPath::parse("/target");
 
     let effective_dest = compute_test_destination(&source, &dest);
     assert_eq!(
@@ -535,8 +535,8 @@ fn test_destination_computation_without_trailing_slash() {
 
 #[test]
 fn test_destination_computation_with_trailing_slash() {
-    let source = sy::path::SyncPath::parse("/a/myproject/");
-    let dest = sy::path::SyncPath::parse("/target");
+    let source = rsy::path::SyncPath::parse("/a/myproject/");
+    let dest = rsy::path::SyncPath::parse("/target");
 
     let effective_dest = compute_test_destination(&source, &dest);
     assert_eq!(effective_dest, std::path::PathBuf::from("/target"));
@@ -544,8 +544,8 @@ fn test_destination_computation_with_trailing_slash() {
 
 #[test]
 fn test_remote_destination_computation_without_trailing_slash() {
-    let source = sy::path::SyncPath::parse("user@host:/a/myproject");
-    let dest = sy::path::SyncPath::parse("/target");
+    let source = rsy::path::SyncPath::parse("user@host:/a/myproject");
+    let dest = rsy::path::SyncPath::parse("/target");
 
     assert!(!source.has_trailing_slash());
     let effective_dest = compute_test_destination(&source, &dest);
@@ -557,8 +557,8 @@ fn test_remote_destination_computation_without_trailing_slash() {
 
 #[test]
 fn test_remote_destination_computation_with_trailing_slash() {
-    let source = sy::path::SyncPath::parse("user@host:/a/myproject/");
-    let dest = sy::path::SyncPath::parse("/target");
+    let source = rsy::path::SyncPath::parse("user@host:/a/myproject/");
+    let dest = rsy::path::SyncPath::parse("/target");
 
     assert!(source.has_trailing_slash());
     let effective_dest = compute_test_destination(&source, &dest);

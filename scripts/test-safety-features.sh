@@ -6,7 +6,7 @@
 
 set -e
 
-echo "🧪 Testing sy safety features"
+echo "🧪 Testing rsy safety features"
 echo "=============================="
 echo ""
 

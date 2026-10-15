@@ -4,22 +4,22 @@
 #![cfg(unix)]
 
 use futures::TryStreamExt;
+use rsy::endpoint::local_entry_scan::selected_leaf_stream;
+use rsy::engine::controller::{preflight_sync_scoped_with_content, SyncController, SyncPlan};
+use rsy::engine::delete_plan::{DeleteLimit, DeletePolicy};
+use rsy::engine::domain::{RelativePath, SyncOp, SyncScope};
+use rsy::engine::planner::{ComparisonMode, ComparisonPolicy};
+use rsy::engine::reconcile::OrderedReconciler;
+use rsy::engine::scan::ScanRequest;
+use rsy::engine::scheduler::Scheduler;
+use rsy::protocol::Operation;
+use rsy::remote::pull::RemotePullExecutor;
+use rsy::remote::push::{RemoteBackupPlan, RemotePushExecutor};
+use rsy::remote::runtime::ClientRemoteSession;
 use std::num::NonZeroUsize;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::Path;
 use std::time::Duration;
-use sy::endpoint::local_entry_scan::selected_leaf_stream;
-use sy::engine::controller::{preflight_sync_scoped_with_content, SyncController, SyncPlan};
-use sy::engine::delete_plan::{DeleteLimit, DeletePolicy};
-use sy::engine::domain::{RelativePath, SyncOp, SyncScope};
-use sy::engine::planner::{ComparisonMode, ComparisonPolicy};
-use sy::engine::reconcile::OrderedReconciler;
-use sy::engine::scan::ScanRequest;
-use sy::engine::scheduler::Scheduler;
-use sy::protocol::Operation;
-use sy::remote::pull::RemotePullExecutor;
-use sy::remote::push::{RemoteBackupPlan, RemotePushExecutor};
-use sy::remote::runtime::ClientRemoteSession;
 
 #[derive(Clone, Copy, Debug)]
 enum Case {
@@ -69,7 +69,7 @@ fn seed(path: &Path, bytes: &[u8], mode: u32) {
 }
 
 async fn selected_plan(
-    source: &sy::endpoint::source_root::SourceRoot,
+    source: &rsy::endpoint::source_root::SourceRoot,
     destination: &Path,
     case: Case,
 ) -> SyncPlan {
@@ -83,7 +83,7 @@ async fn selected_plan(
             destination: relative("renamed"),
         },
     );
-    let rooted = sy::rooted_fs::RootedFs::open(destination.into())
+    let rooted = rsy::rooted_fs::RootedFs::open(destination.into())
         .await
         .unwrap();
     let (_rooted, namespace) = rooted.with_namespace_qualification().await.unwrap();
@@ -102,7 +102,7 @@ async fn selected_plan(
             limit: DeleteLimit::Unlimited,
             force: false,
         }),
-        sy::engine::namespace::NamespacePreflight::new(&namespace),
+        rsy::engine::namespace::NamespacePreflight::new(&namespace),
         |_| true,
         |_| futures::future::ready(Ok(true)),
         |_, _| async { panic!("size-only/always plans do not request content comparison") },
@@ -221,13 +221,13 @@ async fn selected_address_matrix(push: bool) {
             xattr::set(&source_path, "user.sy-selected", b"preserved").unwrap();
             xattr::set(&dest_path, "user.sy-stale", b"remove").unwrap();
         }
-        let authority = sy::endpoint::source_root::SourceRoot::open(source.path().into())
+        let authority = rsy::endpoint::source_root::SourceRoot::open(source.path().into())
             .await
             .unwrap();
         let plan = selected_plan(&authority, destination.path(), case).await;
         let (client_io, server_io) = tokio::io::duplex(64 * 1024);
         let (reader, writer) = tokio::io::split(server_io);
-        let server = tokio::spawn(sy::remote::serve::serve_transport(
+        let server = tokio::spawn(rsy::remote::serve::serve_transport(
             reader,
             writer,
             Default::default(),
@@ -258,7 +258,7 @@ async fn selected_address_matrix(push: bool) {
                 .await
                 .unwrap();
             namespace
-                .qualify(sy::engine::namespace::NamespaceParent::Root)
+                .qualify(rsy::engine::namespace::NamespaceParent::Root)
                 .await
                 .unwrap();
             namespace.seal().await.unwrap();
@@ -287,16 +287,16 @@ async fn selected_address_matrix(push: bool) {
                 .try_collect::<Vec<_>>()
                 .await
                 .unwrap();
-            let mut binding = sy::rooted_fs::operand::BoundDestination::open(
+            let mut binding = rsy::rooted_fs::operand::BoundDestination::open(
                 destination.path().into(),
-                sy::rooted_fs::operand::SourceShape::Directory { basename: None },
+                rsy::rooted_fs::operand::SourceShape::Directory { basename: None },
             )
             .await
             .unwrap();
             let (root, namespace) = binding.root.with_namespace_qualification().await.unwrap();
-            use sy::engine::namespace::NamespaceQualification;
+            use rsy::engine::namespace::NamespaceQualification;
             namespace
-                .qualify(sy::engine::namespace::NamespaceParent::Root)
+                .qualify(rsy::engine::namespace::NamespaceParent::Root)
                 .await
                 .unwrap();
             namespace.seal().await.unwrap();
@@ -425,7 +425,7 @@ async fn selected_hardlink_member_uses_physical_source_and_renamed_destination()
         let mut request = ScanRequest::default();
         request.metadata.unix_mode = true;
         request.metadata.hardlink_group = true;
-        let authority = sy::endpoint::source_root::SourceRoot::open(source.path().into())
+        let authority = rsy::endpoint::source_root::SourceRoot::open(source.path().into())
             .await
             .unwrap();
         let reconciler = OrderedReconciler::with_scope(
@@ -441,7 +441,7 @@ async fn selected_hardlink_member_uses_physical_source_and_renamed_destination()
                 destination: relative("renamed-a"),
             },
         );
-        let rooted = sy::rooted_fs::RootedFs::open(destination.path().into())
+        let rooted = rsy::rooted_fs::RootedFs::open(destination.path().into())
             .await
             .unwrap();
         let (_rooted, namespace) = rooted.with_namespace_qualification().await.unwrap();
@@ -449,7 +449,7 @@ async fn selected_hardlink_member_uses_physical_source_and_renamed_destination()
             reconciler,
             Default::default(),
             None,
-            sy::engine::namespace::NamespacePreflight::new(&namespace),
+            rsy::engine::namespace::NamespacePreflight::new(&namespace),
             |_| true,
             |_| futures::future::ready(Ok(false)),
             |_, _| async { panic!("new leaf requires no content comparison") },
@@ -467,7 +467,7 @@ async fn selected_hardlink_member_uses_physical_source_and_renamed_destination()
         plan.seal_hardlink_membership().await.unwrap();
         let (client_io, server_io) = tokio::io::duplex(64 * 1024);
         let (reader, writer) = tokio::io::split(server_io);
-        let server = tokio::spawn(sy::remote::serve::serve_transport(
+        let server = tokio::spawn(rsy::remote::serve::serve_transport(
             reader,
             writer,
             Default::default(),
@@ -499,7 +499,7 @@ async fn selected_hardlink_member_uses_physical_source_and_renamed_destination()
                     .await
                     .unwrap();
                 namespace
-                    .qualify(sy::engine::namespace::NamespaceParent::Root)
+                    .qualify(rsy::engine::namespace::NamespaceParent::Root)
                     .await
                     .unwrap();
                 namespace.seal().await.unwrap();

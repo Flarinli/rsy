@@ -1,25 +1,25 @@
 #![cfg(unix)]
 
 use futures::TryStreamExt;
+use rsy::endpoint::local_entry_scan::local_entry_stream;
+use rsy::engine::controller::{preflight_sync, SyncController, SyncPlanExecutor};
+use rsy::engine::delete_plan::{DeleteAction, DeleteLimit, DeletePolicy};
+use rsy::engine::domain::{Entry, SyncOp};
+use rsy::engine::finalize_journal::FinalizeMetadata;
+use rsy::engine::planner::{ComparisonPolicy, ExecutionPolicy};
+use rsy::engine::scan::ScanRequest;
+use rsy::engine::scheduler::{ResourceBudget, Scheduler};
+use rsy::engine::work::{WorkItem, WorkResult};
+use rsy::protocol::Operation;
+use rsy::remote::local_executor::LocalSyncExecutor;
+use rsy::remote::pull::RemotePullExecutor;
+use rsy::remote::push::RemotePushExecutor;
+use rsy::remote::router::RouterConfig;
+use rsy::remote::runtime::ClientRemoteSession;
+use rsy::transfer::delta::BasisIndexLimits;
 use std::num::NonZeroUsize;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use sy::endpoint::local_entry_scan::local_entry_stream;
-use sy::engine::controller::{preflight_sync, SyncController, SyncPlanExecutor};
-use sy::engine::delete_plan::{DeleteAction, DeleteLimit, DeletePolicy};
-use sy::engine::domain::{Entry, SyncOp};
-use sy::engine::finalize_journal::FinalizeMetadata;
-use sy::engine::planner::{ComparisonPolicy, ExecutionPolicy};
-use sy::engine::scan::ScanRequest;
-use sy::engine::scheduler::{ResourceBudget, Scheduler};
-use sy::engine::work::{WorkItem, WorkResult};
-use sy::protocol::Operation;
-use sy::remote::local_executor::LocalSyncExecutor;
-use sy::remote::pull::RemotePullExecutor;
-use sy::remote::push::RemotePushExecutor;
-use sy::remote::router::RouterConfig;
-use sy::remote::runtime::ClientRemoteSession;
-use sy::transfer::delta::BasisIndexLimits;
 
 #[derive(Clone, Copy, Debug)]
 enum Direction {
@@ -54,7 +54,7 @@ impl<E: SyncPlanExecutor> SyncPlanExecutor for BeforeFinalize<E> {
     }
     async fn prepare_destination_for_create(
         &self,
-        create: &sy::engine::domain::RelativePath,
+        create: &rsy::engine::domain::RelativePath,
     ) -> Result<(), E::Error> {
         self.inner.prepare_destination_for_create(create).await
     }
@@ -73,7 +73,7 @@ impl<E: SyncPlanExecutor> SyncPlanExecutor for BeforeFinalize<E> {
     }
     async fn execute_hardlink_group(
         &self,
-        group: &mut sy::engine::hardlink_runtime::HardlinkGroupPlan<'_>,
+        group: &mut rsy::engine::hardlink_runtime::HardlinkGroupPlan<'_>,
         policy: ExecutionPolicy,
     ) -> Result<Option<()>, E::Error> {
         for parent in &self.prepared_parents {
@@ -140,7 +140,7 @@ impl<E: SyncPlanExecutor> SyncPlanExecutor for BeforeFinalize<E> {
 }
 
 async fn qualify_push_directories(client: &ClientRemoteSession, paths: &[&str]) {
-    use sy::engine::namespace::NamespaceParent;
+    use rsy::engine::namespace::NamespaceParent;
     let namespace = client
         .request_handle()
         .begin_namespace_qualification()
@@ -150,7 +150,7 @@ async fn qualify_push_directories(client: &ClientRemoteSession, paths: &[&str]) 
     for path in paths {
         namespace
             .qualify(NamespaceParent::Directory(
-                sy::engine::domain::RelativePath::new(*path).unwrap(),
+                rsy::engine::domain::RelativePath::new(*path).unwrap(),
             ))
             .await
             .unwrap();
@@ -253,7 +253,7 @@ async fn run_case(
     }
     let mut request = ScanRequest::default();
     request.metadata.unix_mode = true;
-    let authority = sy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
+    let authority = rsy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
         .await
         .unwrap();
     let source_entries = authority
@@ -265,10 +265,10 @@ async fn run_case(
         .try_collect::<Vec<_>>()
         .await
         .unwrap();
-    let stream = |entries: Vec<Entry>| -> sy::engine::reconcile::EntryStream {
-        sy::engine::reconcile::EntryStream::new(futures::stream::iter(entries.into_iter().map(Ok)))
+    let stream = |entries: Vec<Entry>| -> rsy::engine::reconcile::EntryStream {
+        rsy::engine::reconcile::EntryStream::new(futures::stream::iter(entries.into_iter().map(Ok)))
     };
-    let rooted = sy::rooted_fs::RootedFs::open(destination.path().into())
+    let rooted = rsy::rooted_fs::RootedFs::open(destination.path().into())
         .await
         .unwrap();
     let (_rooted, namespace) = rooted.with_namespace_qualification().await.unwrap();
@@ -280,7 +280,7 @@ async fn run_case(
             limit: DeleteLimit::Percentage(100),
             force: false,
         }),
-        sy::engine::namespace::NamespacePreflight::new(&namespace),
+        rsy::engine::namespace::NamespacePreflight::new(&namespace),
         |_| true,
     )
     .await
@@ -300,7 +300,7 @@ async fn run_case(
                 wrap(
                     LocalSyncExecutor::new(
                         authority,
-                        sy::endpoint::local::LocalEndpoint::new(destination.path().to_path_buf()),
+                        rsy::endpoint::local::LocalEndpoint::new(destination.path().to_path_buf()),
                         scheduler,
                     )
                     .with_xattrs(true)
@@ -316,7 +316,7 @@ async fn run_case(
             let (client_io, server_io) = tokio::io::duplex(64 * 1024);
             let (cr, cw) = tokio::io::split(client_io);
             let (sr, sw) = tokio::io::split(server_io);
-            let server = tokio::spawn(sy::remote::serve::serve_transport(
+            let server = tokio::spawn(rsy::remote::serve::serve_transport(
                 sr,
                 sw,
                 RouterConfig::default(),
@@ -528,13 +528,13 @@ async fn interleaved_hardlink_parents_are_prepared_before_leaves_and_finalized_l
         )
         .unwrap();
     }
-    let authority = sy::endpoint::source_root::SourceRoot::open(source.path().into())
+    let authority = rsy::endpoint::source_root::SourceRoot::open(source.path().into())
         .await
         .unwrap();
     let mut request = ScanRequest::default();
     request.metadata.unix_mode = true;
     request.metadata.hardlink_group = true;
-    let rooted = sy::rooted_fs::RootedFs::open(destination.path().into())
+    let rooted = rsy::rooted_fs::RootedFs::open(destination.path().into())
         .await
         .unwrap();
     let (_rooted, namespace) = rooted.with_namespace_qualification().await.unwrap();
@@ -547,7 +547,7 @@ async fn interleaved_hardlink_parents_are_prepared_before_leaves_and_finalized_l
             ..Default::default()
         },
         None,
-        sy::engine::namespace::NamespacePreflight::new(&namespace),
+        rsy::engine::namespace::NamespacePreflight::new(&namespace),
         |_| true,
     )
     .await
@@ -557,7 +557,7 @@ async fn interleaved_hardlink_parents_are_prepared_before_leaves_and_finalized_l
         BeforeFinalize {
             inner: LocalSyncExecutor::new(
                 authority,
-                sy::endpoint::local::LocalEndpoint::new(destination.path().into()),
+                rsy::endpoint::local::LocalEndpoint::new(destination.path().into()),
                 Scheduler::new(ResourceBudget::default()).unwrap(),
             )
             .with_hardlinks(true),
@@ -721,7 +721,7 @@ async fn failed_parent_finalization_retains_published_and_unchanged_sources() {
                 .unwrap();
             }
             let authority =
-                sy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
+                rsy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
                     .await
                     .unwrap();
             let mut request = ScanRequest::default();
@@ -736,11 +736,11 @@ async fn failed_parent_finalization_retains_published_and_unchanged_sources() {
                 .await
                 .unwrap();
             let stream = |entries: Vec<Entry>| {
-                sy::engine::reconcile::EntryStream::new(futures::stream::iter(
+                rsy::engine::reconcile::EntryStream::new(futures::stream::iter(
                     entries.into_iter().map(Ok),
                 ))
             };
-            let rooted = sy::rooted_fs::RootedFs::open(destination.path().into())
+            let rooted = rsy::rooted_fs::RootedFs::open(destination.path().into())
                 .await
                 .unwrap();
             let (_rooted, namespace) = rooted.with_namespace_qualification().await.unwrap();
@@ -752,7 +752,7 @@ async fn failed_parent_finalization_retains_published_and_unchanged_sources() {
                     ..Default::default()
                 },
                 None,
-                sy::engine::namespace::NamespacePreflight::new(&namespace),
+                rsy::engine::namespace::NamespacePreflight::new(&namespace),
                 |_| true,
             )
             .await
@@ -772,7 +772,7 @@ async fn failed_parent_finalization_retains_published_and_unchanged_sources() {
                         wrap(
                             LocalSyncExecutor::new(
                                 authority,
-                                sy::endpoint::local::LocalEndpoint::new(
+                                rsy::endpoint::local::LocalEndpoint::new(
                                     destination.path().to_path_buf(),
                                 ),
                                 scheduler,
@@ -788,7 +788,7 @@ async fn failed_parent_finalization_retains_published_and_unchanged_sources() {
                     let (client_io, server_io) = tokio::io::duplex(64 * 1024);
                     let (cr, cw) = tokio::io::split(client_io);
                     let (sr, sw) = tokio::io::split(server_io);
-                    let server = tokio::spawn(sy::remote::serve::serve_transport(
+                    let server = tokio::spawn(rsy::remote::serve::serve_transport(
                         sr,
                         sw,
                         RouterConfig::default(),

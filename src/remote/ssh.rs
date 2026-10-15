@@ -212,7 +212,9 @@ async fn terminate_child(child: &mut Child) -> Result<()> {
 }
 
 fn ssh_arguments(target: &SshTarget, launch: &SshLaunchOptions) -> Vec<OsString> {
-    let mut args = Vec::new();
+    // The protocol is binary: a config-level `RequestTTY force` would allocate a
+    // pty that rewrites bytes and enables escape sequences, so always disable it.
+    let mut args = vec![OsString::from("-T")];
 
     // Only explicit command-line overrides are passed; everything else is
     // resolved by OpenSSH from the user's own ssh_config against the alias.
@@ -227,9 +229,12 @@ fn ssh_arguments(target: &SshTarget, launch: &SshLaunchOptions) -> Vec<OsString>
 
     // The alias is one argv word and goes through untouched: Host matching,
     // Include, Match, HostName, ProxyJump, IdentityFile, ControlMaster and
-    // Compression all belong to OpenSSH. No shell is involved.
+    // Compression all belong to OpenSSH. No shell is involved. `--` ends option
+    // parsing so an alias such as `-oProxyCommand=...` (reachable through
+    // `user@-o...:path`) cannot be read as an OpenSSH option.
+    args.push(OsString::from("--"));
     args.push(target.alias.clone());
-    args.push(OsString::from("sy"));
+    args.push(OsString::from("rsy"));
     args.push(OsString::from("__serve"));
     args
 }
@@ -341,11 +346,35 @@ mod tests {
             &args[args.len() - 3..],
             [
                 OsString::from("host alias;$(touch /tmp/pwn)"),
-                OsString::from("sy"),
+                OsString::from("rsy"),
                 OsString::from("__serve"),
             ]
         );
-        assert_eq!(&args[..2], [OsString::from("-l"), OsString::from("alice")]);
+        assert_eq!(
+            &args[..3],
+            [
+                OsString::from("-T"),
+                OsString::from("-l"),
+                OsString::from("alice")
+            ]
+        );
+    }
+
+    #[test]
+    fn option_shaped_alias_cannot_inject_openssh_options() {
+        let target = SshTarget::new("-oProxyCommand=touch pwned", Some("alice".to_string()));
+        let args = ssh_arguments(&target, &SshLaunchOptions::default());
+        let separator = args
+            .iter()
+            .position(|arg| arg == "--")
+            .expect("alias must follow an end-of-options separator");
+        assert_eq!(
+            args[separator + 1],
+            OsString::from("-oProxyCommand=touch pwned")
+        );
+        assert!(!args[..separator]
+            .iter()
+            .any(|arg| arg.to_string_lossy().starts_with("-oProxy")));
     }
 
     #[test]
@@ -358,7 +387,7 @@ mod tests {
             .collect();
 
         // Port, identities, jump hosts, control masters, and compression all
-        // come from the user's ssh_config; sy must not reconstruct them.
+        // come from the user's ssh_config; rsy must not reconstruct them.
         for reconstructed in ["-p", "-i", "-J", "-C", "-o", "-l"] {
             assert!(
                 !rendered.iter().any(|arg| arg == reconstructed),
@@ -368,7 +397,7 @@ mod tests {
         // No remote root on argv: roots are protocol data.
         assert!(!rendered.iter().any(|arg| arg.contains("/remote/root")));
         // No user: OpenSSH applies the alias's own User= (or the local user).
-        assert_eq!(rendered, vec!["gh", "sy", "__serve"]);
+        assert_eq!(rendered, vec!["-T", "--", "gh", "rsy", "__serve"]);
     }
 
     #[test]
@@ -384,7 +413,15 @@ mod tests {
             .collect();
         assert_eq!(
             options,
-            vec!["-o", "ConnectTimeout=10", "host.example", "sy", "__serve"]
+            vec![
+                "-T",
+                "-o",
+                "ConnectTimeout=10",
+                "--",
+                "host.example",
+                "rsy",
+                "__serve"
+            ]
         );
     }
 }

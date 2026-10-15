@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use rsy::engine::rolling::WeakChecksum;
+use rsy::transfer::delta::{match_delta, BasisBlock, BasisIndex, BasisIndexLimits, DeltaOp};
 use std::io::Cursor;
 use std::time::Duration;
-use sy::engine::rolling::WeakChecksum;
-use sy::transfer::delta::{match_delta, BasisBlock, BasisIndex, BasisIndexLimits, DeltaOp};
 
 fn corpus(size: usize, mut seed: u64) -> Vec<u8> {
     (0..size)

@@ -1,12 +1,12 @@
 use crate::endpoint::local_identity::metadata_identity;
 #[path = "local_entry_scan/traversal.rs"]
 mod traversal;
-use std::path::{Path, PathBuf};
-use sy::engine::domain::{
+use rsy::engine::domain::{
     Entry, EntryIdentity, EntryKind, InvalidRelativePath, InvalidTimestamp, RelativePath, Timestamp,
 };
-use sy::engine::reconcile::{BoxError, EntryStream};
-use sy::engine::scan::ScanRequest;
+use rsy::engine::reconcile::{BoxError, EntryStream};
+use rsy::engine::scan::ScanRequest;
+use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
@@ -409,7 +409,7 @@ mod tests {
         std::fs::write(dir.path().join("first"), b"content").unwrap();
         std::fs::hard_link(dir.path().join("first"), dir.path().join("second")).unwrap();
         let request = ScanRequest {
-            metadata: sy::engine::scan::EntryMetadataRequest {
+            metadata: rsy::engine::scan::EntryMetadataRequest {
                 hardlink_group: true,
                 ..Default::default()
             },
@@ -428,7 +428,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         std::os::unix::fs::symlink("missing", dir.path().join("link")).unwrap();
         let request = ScanRequest {
-            metadata: sy::engine::scan::EntryMetadataRequest {
+            metadata: rsy::engine::scan::EntryMetadataRequest {
                 unix_mode: true,
                 symlink_target: false,
                 ..Default::default()

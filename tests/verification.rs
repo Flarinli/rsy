@@ -12,7 +12,7 @@ fn native_names_do_not_discard_json_verification_or_operation_events() {
     let name = std::ffi::OsString::from_vec(vec![b'f', 0xff]);
     std::fs::write(source.join(&name), b"a").unwrap();
     std::fs::write(destination.join(&name), b"b").unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
         .arg(source.join(""))
         .arg(&destination)
         .args(["--verify=only", "--json"])
@@ -27,7 +27,7 @@ fn native_names_do_not_discard_json_verification_or_operation_events() {
             "encoding": "unix_bytes", "bytes": source.join(&name).as_os_str().as_bytes()
         })
     );
-    let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
         .arg(source.join(""))
         .arg(&destination)
         .args(["--checksum", "--json"])
@@ -78,7 +78,7 @@ fn verify_only_reports_exact_totals_after_bounded_examples_without_writes() {
     // A content comparison beyond the detail limit must still run and count.
     std::fs::write(source.join("zz-last"), b"a").unwrap();
     std::fs::write(destination.join("zz-last"), b"b").unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
         .arg(source.join(""))
         .arg(&destination)
         .args(["--verify=only", "--json"])
@@ -111,7 +111,7 @@ fn verify_only_reports_exact_totals_after_bounded_examples_without_writes() {
     assert_eq!(std::fs::read_dir(&source).unwrap().count(), 72);
     assert_eq!(std::fs::read_dir(&destination).unwrap().count(), 72);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
         .arg(source.join(""))
         .arg(&destination)
         .arg("--verify=only")

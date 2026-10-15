@@ -1027,7 +1027,7 @@ mod tests {
 
     #[tokio::test]
     async fn tiny_budget_wide_and_deep_scans_are_incremental_and_ordered() {
-        if let Some(path) = std::env::var_os("SY_TEST_SCAN_FD_ROOT") {
+        if let Some(path) = std::env::var_os("RSY_TEST_SCAN_FD_ROOT") {
             let rooted = RootedFs::open(PathBuf::from(path)).await.unwrap();
             let (mut receiver, worker) = tiny_stream(rooted);
             let mut count = 0;
@@ -1087,7 +1087,7 @@ mod tests {
         let scratch = tempfile::TempDir::new().unwrap();
         let mut child = std::process::Command::new(std::env::current_exe().unwrap());
         child.args(["--exact", "rooted_fs::scan::tests::tiny_budget_wide_and_deep_scans_are_incremental_and_ordered"])
-            .env("SY_TEST_SCAN_FD_ROOT", root.path())
+            .env("RSY_TEST_SCAN_FD_ROOT", root.path())
             .env("TMPDIR", scratch.path());
         unsafe {
             // SAFETY: the pre-exec hook only invokes async-signal-safe resource

@@ -1,5 +1,5 @@
-# Python ignore template for sy
-# Copy to ~/.config/sy/templates/python.syignore or use with --ignore-template python
+# Python ignore template for rsy
+# Copy to ~/.config/rsy/templates/python.rsyignore or use with --ignore-template python
 
 # Byte-compiled / optimized
 __pycache__/

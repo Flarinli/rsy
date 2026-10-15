@@ -32,7 +32,7 @@ impl TempFileGuard {
             .wrapping_add(nanos)
             .wrapping_mul(31)
             .wrapping_add(counter);
-        parent.join(format!(".sy-{hash:08x}.tmp"))
+        parent.join(format!(".rsy-{hash:08x}.tmp"))
     }
 
     pub fn defuse(mut self) {

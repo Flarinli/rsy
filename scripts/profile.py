@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Profile an explicit sy artifact against freshly reset, hash-checked trees.
+"""Profile an explicit rsy artifact against freshly reset, hash-checked trees.
 
 Build an optimized artifact first. For symbolized captures, retain debug info:
-  CARGO_PROFILE_RELEASE_DEBUG=1 cargo build --locked --release --bin sy
-  python3 scripts/profile.py --sy-binary target/release/sy --scenario large_file \
+  CARGO_PROFILE_RELEASE_DEBUG=1 cargo build --locked --release --bin rsy
+  python3 scripts/profile.py --rsy-binary target/release/rsy --scenario large_file \
       --phase changed --recorder samply
 
 --root selects the fixture filesystem (for example Btrfs versus tmpfs).
@@ -55,7 +55,7 @@ def randomize_payloads(source):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--sy-binary", type=Path, required=True)
+    parser.add_argument("--rsy-binary", type=Path, required=True)
     parser.add_argument("--scenario", choices=sorted(SCENARIOS), default="mixed")
     parser.add_argument("--quick", action="store_true", help="small fixture for harness checks")
     parser.add_argument("--phase", choices=["new", "unchanged", "changed", "scan"], default="changed")
@@ -73,26 +73,26 @@ def main():
         parser.error("perf captures require Linux")
     if args.recorder != "none" and shutil.which(args.recorder) is None:
         parser.error(f"{args.recorder} is not installed")
-    sy = resolve_sy_binary(args.sy_binary)
-    versions = get_version_info(sy)
-    artifact = {**versions["sy_binary"], "version": versions["sy"]}
+    rsy = resolve_sy_binary(args.rsy_binary)
+    versions = get_version_info(rsy)
+    artifact = {**versions["rsy_binary"], "version": versions["rsy"]}
     output = args.output or Path("target/profiling") / time.strftime("%Y%m%d-%H%M%S")
     output.mkdir(parents=True, exist_ok=False)
     output = output.resolve()
     config = next(iter(QUICK_SCENARIOS.values())) if args.quick else SCENARIOS[args.scenario]
     timings = []
 
-    with tempfile.TemporaryDirectory(prefix="sy-profile-", dir=args.root) as fixture:
+    with tempfile.TemporaryDirectory(prefix="rsy-profile-", dir=args.root) as fixture:
         fixture = Path(fixture)
         source, basis, destination = (fixture / name for name in ["source", "basis", "destination"])
         source.mkdir()
         count, payload_bytes = generate_test_data(source, config)
         if args.entropy == "random":
             randomize_payloads(source)
-        common = [str(sy), str(source) + os.sep, str(destination), "--preserve-times", "--quiet"]
+        common = [str(rsy), str(source) + os.sep, str(destination), "--preserve-times", "--quiet"]
         # Baseline creation, mutation, reset, and validation are all untimed.
         if args.phase in {"unchanged", "changed"}:
-            checked([str(sy), str(source) + os.sep, str(basis), "--preserve-times", "--quiet"])
+            checked([str(rsy), str(source) + os.sep, str(basis), "--preserve-times", "--quiet"])
             if tree_manifest(str(basis)) != tree_manifest(str(source)):
                 raise RuntimeError("baseline payload/tree mismatch")
         modified = modify_files(source) if args.phase == "changed" else 0
@@ -104,7 +104,7 @@ def main():
                 shutil.rmtree(destination)
             if args.phase in {"unchanged", "changed"}:
                 # Portable ordinary copy, not a reflink reset. This seeds an
-                # existing destination; sy's own COW capability is still native.
+                # existing destination; rsy's own COW capability is still native.
                 shutil.copytree(basis, destination)
 
         def validate():
@@ -115,7 +115,7 @@ def main():
                 raise RuntimeError("sample payload/tree mismatch")
             if tree_manifest(str(source)) != expected:
                 raise RuntimeError("sample mutated its source")
-            if sha256_file(sy) != artifact["sha256"]:
+            if sha256_file(rsy) != artifact["sha256"]:
                 raise RuntimeError("artifact changed during profiling")
 
         reset()

@@ -14,7 +14,7 @@ fn compression_options_preserve_local_copy_bytes() {
     // codec round trip or the removed whole-file size/extension heuristics.
     for mode in ["auto", "extension", "always", "never"] {
         let dest = TempDir::new().unwrap();
-        let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+        let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
             .arg(format!("{}/", source.path().display()))
             .arg(dest.path())
             .arg(format!("--compress={mode}"))

@@ -4,7 +4,7 @@ use std::process::Command;
 use tempfile::TempDir;
 
 fn sy_bin() -> String {
-    env!("CARGO_BIN_EXE_sy").to_string()
+    env!("CARGO_BIN_EXE_rsy").to_string()
 }
 
 fn setup_git_repo(dir: &TempDir) {
@@ -299,7 +299,7 @@ proptest! {
         source_count in 1usize..5,
         extra_count in 5usize..20,
     ) {
-        // When too many files would be deleted, sy should refuse (without --force-delete)
+        // When too many files would be deleted, rsy should refuse (without --force-delete)
         let source = TempDir::new().unwrap();
         let dest = TempDir::new().unwrap();
         setup_git_repo(&source);

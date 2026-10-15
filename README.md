@@ -1,278 +1,168 @@
-# sy
+# rsy
 
 > [!WARNING]
-> Under active development.
+> Under active development. `main` tracks the unfinished 0.5 rewrite.
 
-[![CI](https://github.com/nijaru/sy/actions/workflows/ci.yml/badge.svg)](https://github.com/nijaru/sy/actions)
+[![CI](https://github.com/Flarinli/rsy/actions/workflows/ci.yml/badge.svg)](https://github.com/Flarinli/rsy/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Fast file synchronization. Same mental model as rsync, built in Rust.
+Fast file synchronization with rsync's mental model, rebuilt in Rust around one
+bounded, transactional sync engine for local and SSH transfers.
 
-Development on `main` tracks the unfinished 0.5 rewrite. The published
-`cargo install sy` crate is still 0.4.x; build from source to track 0.5.
+```bash
+rsy /source/ /destination
+```
+
+**rsy is not a drop-in rsync replacement.** The command-line model is familiar,
+but the wire protocol is its own. Use rsync when you need rsync-to-rsync
+compatibility.
+
+> rsy was previously named `sy`. The binary, the remote agent (`rsy __serve`),
+> the config directory (`~/.config/rsy/`), ignore files (`.rsyignore`) and
+> hook environment variables (`RSY_*`) all use the new name.
 
 ## Install
 
-```bash
-cargo install sy
-```
-
-For the 0.5 development version, build from source. ACL preservation is behind
-the `acl` feature and needs platform ACL libraries (for example `libacl` on Linux):
+Build from source. You need Rust stable.
 
 ```bash
-cargo build --release --features acl
+git clone https://github.com/Flarinli/rsy.git
+cd rsy
+cargo build --release            # binary at target/release/rsy
+cargo build --release --features acl   # optional: ACL preservation (needs libacl on Linux)
 ```
 
-Static Linux/musl artifacts intentionally omit ACL support so they remain
-standalone remote-agent binaries.
+For SSH sync, the same `rsy` binary must also be on the remote host's `PATH`.
+Static Linux musl builds (`x86_64`/`aarch64-unknown-linux-musl`) are produced
+by CI and work well as drop-in remote agents. They leave out ACL support so
+that they stay fully standalone.
 
-## Quick Start
+## Quick start
 
 ```bash
-# Basic sync
-sy /source /destination
+rsy /source /destination                 # copy the directory itself
+rsy /source/ /destination                # copy its contents (trailing slash)
+rsy /source /destination --dry-run       # preview
+rsy /source /destination --delete        # mirror: delete extras in destination
+rsy -a /source /destination              # archive: recurse, links, perms, times
 
-# Preview changes
-sy /source /destination --dry-run
-
-# Mirror (delete extra files)
-sy /source /destination --delete
-
-# Remote sync via SSH
-sy /local user@host:/remote
-sy user@host:/remote /local
+rsy /local user@host:/remote             # SSH push
+rsy user@host:/remote /local             # SSH pull
 ```
 
-## Features
+## How it works
 
-- **Parallel** — bounded concurrent transfers, `-j N` to tune
-- **Delta sync** — only transfers changed blocks for large files
-- **COW updates** — descriptor-bound reflink patching on Linux Btrfs/XFS;
-  macOS currently uses native whole-file copying
-- **rsync-compatible flags** — `--delete`, `--exclude`, `--compress`, `-i`, etc.
-- **SSH sync** — custom v3 protocol over SSH stdin/stdout (`sy __serve`)
-- **Integrity** — BLAKE3-verified transfers; race-checked, staged atomic commits
-
-## Usage
-
-```
-sy [OPTIONS] <SOURCE> <DESTINATION>
+```text
+source scan ─┐
+             ├─> reconcile ─> plan ─> schedule ─> stage ─> verify ─> atomic commit
+  dest scan ─┘
 ```
 
-### Common Flags
+- **One engine.** Local→local, local→SSH and SSH→local all share the same
+  ordered merge reconciler, planner, scheduler and safety rules.
+- **Staged, atomic replacement.** New bytes are written to private staging on
+  the destination filesystem. Metadata is applied and the result is verified
+  before an atomic rename or exchange. If anything fails before commit, the old
+  destination is left intact.
+- **Bounded resources.** Every queue is bounded. Scans, deletion journals and
+  namespace checks spill to authenticated scratch files instead of holding whole
+  trees in RAM.
+- **Race-aware.** Source files are checked against their scanned identity
+  before, during and after transfer. A file that changes mid-copy fails the
+  transfer; it is never committed.
+
+### Transfer strategies
+
+| Situation | Strategy |
+|-----------|----------|
+| New local file | Native OS copy into staging |
+| Changed large file on Btrfs/XFS (Linux) | Reflink old file, patch changed ranges |
+| Changed file on non-COW filesystem | Native whole-file copy |
+| Sparse file | Extent-aware copy preserving holes |
+| SSH, changed file ≥ 10 MiB | Rolling delta, in both push and pull |
+| SSH, new or small file | Whole-file stream, optional zstd |
+
+## SSH sync
+
+rsy uses **your own OpenSSH client** as the transport. It runs:
+
+```text
+ssh -T [-l user] [-o ConnectTimeout=N] -- <host> rsy __serve
+```
+
+- Your `~/.ssh/config` applies unchanged. That covers `Host` aliases, `Include`,
+  `Match`, `ProxyJump`, `ControlMaster`, agents and security keys. rsy never
+  parses or rewrites it.
+- Remote paths are **never** placed on the SSH command line. The remote root is
+  sent inside the binary protocol handshake, so shell quoting and injection
+  through paths are not possible.
+- `-T` keeps the binary stream clean even if your config sets `RequestTTY`.
+  `--` ensures a host alias can never be interpreted as an OpenSSH option.
+- The remote agent works relative to a held root directory handle. It walks
+  every path component with `O_NOFOLLOW` directory descriptors, so pre-existing
+  symlinks cannot escape the root.
+- Every remote file is **BLAKE3-verified** after reconstruction in staging and
+  before it is committed. This is the default, not an opt-in.
+- Many files are multiplexed over one SSH connection using protocol v3 frames,
+  which are bounded at 1 MiB. Both peers must run the same exact protocol
+  version, currently **v3.13**.
+
+Useful flags: `--timeout N` (I/O idle timeout), `--contimeout N` (SSH connect
+timeout), `--bwlimit RATE`, `-z/--compress`.
+
+Current limitations for **pull** (remote → local): `--remove-source-files` and
+`--copy-links` are refused before any transfer starts.
+
+## Common flags
 
 | Flag | Description |
 |------|-------------|
 | `-n, --dry-run` | Preview changes without applying |
-| `-d, --delete` | Delete files not in source |
-| `-v, --verbose` | Increase verbosity (repeatable) |
-| `-q, --quiet` | Suppress output |
-| `--stats` | Show transfer statistics |
-| `--exclude <PATTERN>` | Exclude files matching pattern |
-| `--exclude-from <FILE>` | Read exclude patterns from file |
-| `--include <PATTERN>` | Include files matching pattern (use after `--exclude`) |
-| `--compress` | Compress transfers (auto-detected) |
-| `-j, --parallel <N>` | Parallel transfers (default: 10) |
+| `-a, --archive` | `-rlpt`: recurse, links, permissions, times (no owner/group/devices) |
+| `-t` | Preserve modification times (recommended for incremental runs) |
+| `-d, --delete` | Delete destination files not present in the source |
+| `--max-delete N\|P%` / `--force-delete` | Deletion safety threshold (default `50%`) / override |
+| `-H` | Preserve hard links |
+| `-X` / `-A` / `-F` | Preserve xattrs / ACLs (`acl` feature) / BSD flags (macOS) |
+| `--links=preserve\|follow\|skip` | Symlink handling |
+| `--exclude`, `--include`, `--exclude-from`, `--filter` | rsync-style filters |
+| `-c, --checksum` | Compare by BLAKE3 content instead of size+mtime |
+| `--verify=after\|only` | Verify staged content locally / audit without changes |
+| `--backup [--backup-dir D] [--suffix S]` | Keep replaced and deleted files |
+| `--remove-source-files` | Move instead of copy (local and push only) |
+| `-j, --parallel N` | Concurrent transfers (default 10) |
+| `-z, --compress` | zstd compression, auto-sampled |
+| `-i, --itemize-changes` | Per-entry change report |
+| `--json` | Machine-readable output |
 
-Use `-t` or `-a` to preserve source modification times in local, push, and pull
-transfers. Without them, `sy` does not apply source timestamps. Because the
-default comparison uses size and mtime, a later bare sync may copy those files
-again; use `-t` for timestamp-based incremental synchronization.
+Run `rsy --help` or `man ./man/rsy.1` for the full list.
 
-### Sync Modes
+Without `-t` or `-a`, rsy does not apply source mtimes. The default quick check
+compares size and mtime, so a later run may copy those files again.
 
-```bash
-# Mirror mode
-sy /source /dest --delete
+## Safety guarantees
 
-# Directories only (no recursion)
-sy /source /dest --dirs
-```
+rsy mutates your data, and losing data is treated as the most serious kind of
+bug.
 
-### Remote Sync
-
-```bash
-# Push to remote
-sy /local user@host:/remote
-
-# Pull from remote
-sy user@host:/remote /local
-
-# With SSH timeout
-sy /local user@host:/remote --timeout 30
-```
-
-Remote-to-local pulls support `--delete` with remote source-ignore protection
-and the same `--max-delete` safety threshold as local sync and push.
-`--remove-source-files` and `--copy-links` remain unsupported for pulls.
-
-### Filters
-
-```bash
-# Exclude patterns
-sy /source /dest --exclude "*.log" --exclude ".git"
-
-# Exclude from file
-sy /source /dest --exclude-from .syignore
-
-# Include specific patterns (after exclude)
-sy /source /dest --exclude "*" --include "*.rs"
-```
-
-### Backup & Safety
-
-```bash
-# Backup before overwrite
-sy /source /dest --backup
-
-# Custom backup directory
-sy /source /dest --backup --backup-dir /backups
-
-# Custom suffix
-sy /source /dest --backup --suffix .bak
-
-# Force delete when threshold exceeded
-sy /source /dest --delete --force-delete
-```
-
-### Verification
-
-```bash
-# Verify staged content against the source before commit
-sy /source /dest --verify=after
-
-# Audit file integrity without modifying anything
-sy /source /dest --verify=only
-
-# Show itemized changes
-sy /source /dest --itemize-changes
-```
-
-Remote transfers are always BLAKE3-verified against the source before the
-destination commit; `--verify` adds staged verification on local copies.
-
-`--verify=only` reports exact totals, but retains at most 32 examples per
-category under a shared 64 KiB detail budget. Error messages are capped at
-2 KiB and marked when shortened. Human output notes omitted entries. With
-`--json`, the `files_mismatched_count`, `files_only_in_source_count`,
-`files_only_in_dest_count`, and `errors_count` fields are the totals; their
-corresponding arrays contain examples, not necessarily every finding.
-
-JSON paths are strings when valid Unicode. Otherwise they use
-`{"encoding":"unix_bytes","bytes":[...]}` on Unix, or
-`{"encoding":"windows_utf16","units":[...]}` on Windows, preserving the
-native name without replacement characters. This encoding applies to event
-paths and verification examples; it does not imply Windows sync support.
-
-## Feature Status
-
-Linux and macOS are the sync platforms exercised by CI. Windows is compile-checked
-only; synchronization is not supported there yet because native race-safe file
-identity and root-confined filesystem operations are not implemented.
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Local sync | Stable | Staged atomic commits, race-checked |
-| SSH push | Stable | v3 protocol over `ssh host sy __serve` |
-| SSH pull | Stable | Whole-file fetch with staged verification |
-| Delta sync (push) | Stable | Rolling weak checksums + BLAKE3 strong block signatures |
-| Filters (--exclude/--include) | Stable | rsync-style patterns, `--filter`, templates |
-| Delete mode (--delete) | Supported | Local/push/pull, with source-ignore protection and `--max-delete` safety threshold |
-| Compression (-z) | Stable | zstd, auto/always/never |
-| Hard links (-H) | Supported | Whole-group topology and metadata for local, SSH push and SSH pull |
-| Symlinks | Stable | `--links=preserve/follow/skip` |
-| Backup mode (--backup) | Stable | Replacements and deletions |
-| Atomic writes | Stable | Private staging, verified, atomic replace |
-| Preservation (-X/-A/-F) | Stable | xattrs; ACLs with the `acl` feature; BSD flags on macOS. Unsupported combinations fail loudly rather than being silently skipped |
-| --bwlimit | Stable | Paced at the byte stream |
-| --checksum | Stable | BLAKE3 content comparison instead of mtime+size |
-| --update / --existing | Stable | Comparison modes for selective sync |
-| --ignore-times / --ignore-existing | Stable | Force transfer / skip existing |
-| --verify | Stable | Staged verification (`after`/`only`) |
-| Directory type transitions | Limited | Local/push file or symlink over an empty directory uses atomic exchange; nonempty replacements, directory over file/symlink, and pull directory transitions are refused in preflight |
-| Bidirectional sync (bisync) | Removed | Not part of 0.5 |
-| S3/GCS endpoints | Planned | Not part of 0.5 (local and SSH sync engine focus) |
-
-Nonempty directory replacements are refused even with `--delete`: descendant
-identities are not yet carried into transaction cleanup. Existing deletion
-scope, protected-descendant and threshold checks still apply before refusal.
-Empty-directory replacement checks for children before exchange and uses only
-`rmdir` afterward. If a child arrives after the check, the replacement may be
-published, but cleanup fails and the old directory stays in private staging;
-its children are never recursively deleted.
-
-Symlink replacements use private same-filesystem staging, apply requested
-mtime before publication, and validate the scanned destination and held parent.
-Creates do not overwrite a name that appeared concurrently. Updates still use
-separate identity checks and rename/exchange syscalls, not atomic
-compare-and-swap; concurrent namespace writers can race those checks. Rename
-also does not promise power-loss durability or whole-run rollback.
-
-With `--remove-source-files`, transferred local or push sources are removed only
-after commit and required preservation succeed. Remote-to-local pulls refuse
-`--remove-source-files`. An unchanged regular file is eligible only
-with `--checksum`: sy re-reads both files and checks requested permissions,
-mtime, xattrs, ACLs and flags against the observed identities before removing
-its source. Local and SSH push `-H` groups also verify actual byte parity before
-any member's source removal, including quick-equal members. A changed destination or required
-preservation failure stops the operation and retains the source. Other quick-check
-skips and unchanged symlinks are retained.
-Source/destination namespace aliases are refused; distinct hardlink names are
-allowed. Remote files with indistinguishable inode and namespace identifiers
-are conservatively treated as aliases. These checks are not atomic with source
-unlink and do not provide isolation from concurrent namespace writers.
-
-For staged file replacements, cancellation or a remote session ending closes
-publication admission. A commit not yet admitted aborts staging and retains the
-old destination. An admitted native commit may finish afterward; cancellation
-cannot interrupt it or undo publication. A lost acknowledgement leaves completion
-uncertain. This cutoff does not yet cover every directory, link, backup or
-in-place metadata operation.
-
-Local and SSH `-H` complete one selected group at a time. The first selected path in
-catalogue order supplies baseline metadata; explicit preservation overrides it.
-If any member transfers or destination links need repair, source bytes become
-canonical for the group—even for quick-equal members. Already-linked groups
-needing only metadata retain destination bytes; a private staged replacement
-isolates changes from outside aliases. Fully matching linked groups stay
-unchanged. Excluded and policy-skipped names are not members to coalesce.
-
-SSH peers must support the same exact protocol version, currently v3.12.
-Group declarations and final acknowledgements bind all selected names; a lost
-final acknowledgement does not authorize source removal.
-
-Outside `-H` group replacement, needed metadata writes to shared regular
-files are refused: an alias may belong to the source, even an excluded file.
-Matching requested state needs no write. Observation checks are not snapshots
-or atomic compare-and-swap; earlier published members remain if a later member
-fails. Source removal waits for verified completion of every selected member.
-
-Deletion backups apply to regular files only. Symlink targets are never copied.
-A backup is staged and identity-checked before publication; failure leaves the
-deletion candidate intact. Local deletion backups now copy then unlink rather
-than rename, which adds I/O. As with source removal, final checks and namespace
-mutation are not an atomic compare-and-swap.
-
-## Benchmarks
-
-No validated performance comparison is available yet for the 0.5 engine.
-The CLI harness compares archive-style copies of caller-owned files. It checks
-exact destination trees outside timing and reports unchanged samples only when
-public transfer evidence proves zero file payload. Rates count logical file
-bytes, not wire traffic.
-
-```bash
-cargo build --release
-python3 scripts/benchmark.py --quick --sy-binary target/release/sy
-cargo bench  # Engine and codec microbenchmarks
-```
-
-The quick run checks the harness; it is not a representative performance study.
+- **Deletion is a commit phase.** Deletes run only after both scans finish
+  successfully and the `--max-delete` threshold has passed. Any source scan
+  error disables deletion. Excluded destination entries protect their parent
+  directories.
+- **Source is read-only.** `--remove-source-files` unlinks a source file only
+  after the destination commit, with **verified content parity** and successful
+  requested preservation. Unverified or quick-equal copies keep their source.
+- **Type transitions are refused when they can't be made atomic.** A file or
+  symlink can replace an empty directory using atomic exchange. Nonempty
+  directory replacements are refused in preflight, before any mutation.
+- **Honest limits.** These checks detect races; they do not take snapshots. rsy
+  does not claim atomic compare-and-swap against concurrent writers, power-loss
+  durability, or whole-run rollback. A failure after commit is reported as a
+  committed failure, never as a rollback.
 
 ## Configuration
 
-sy reads `~/.config/sy/config.toml` for defaults:
+`~/.config/rsy/config.toml` sets defaults:
 
 ```toml
 max_concurrent = 8
@@ -280,33 +170,42 @@ compress = "auto"
 exclude = [".git", "node_modules", "*.pyc"]
 ```
 
-## Comparison to rsync
+You can put a `.rsyignore` file in a source root. Reusable exclude templates go
+in `~/.config/rsy/templates/<name>.rsyignore`, and there are samples in
+[`templates/`](templates/).
 
-| Feature | sy | rsync |
-|---------|-----|-------|
-| Delta sync | Yes (rolling + BLAKE3) | Yes |
-| COW reflink updates | Linux Btrfs/XFS | No |
-| SSH sync | Yes | Yes |
-| Wire protocol | Custom | rsync protocol |
-| Incremental | Yes | Yes |
-| Compression | zstd | Multiple codecs |
+## Platform status
 
-**sy is not a drop-in rsync replacement.** Same mental model, different protocol. For rsync-to-rsync compatibility, use rsync.
+| Platform | Status |
+|----------|--------|
+| Linux | Supported, tested in CI |
+| macOS | Supported, tested in CI (whole-file copy instead of reflink patching) |
+| Windows | Compiles only; synchronization not supported yet |
 
-## Contributing
+Out of scope for 0.5: bidirectional sync, S3/GCS endpoints, automatic remote
+agent install.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and workflow.
+## Development
 
 ```bash
-cargo build
-cargo test
-cargo clippy -- -D warnings
 cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
+cargo deny check
+cargo run --bin man-gen        # regenerate man/rsy.1
 ```
 
-## Changelog
+Architecture and invariants: [docs/architecture-0.5.md](docs/architecture-0.5.md).
+Contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md).
+Release history: [CHANGELOG.md](CHANGELOG.md).
 
-See [CHANGELOG.md](CHANGELOG.md) for release history.
+Benchmarks (harness check, not a performance study):
+
+```bash
+cargo build --release
+python3 scripts/benchmark.py --quick --rsy-binary target/release/rsy
+cargo bench
+```
 
 ## License
 

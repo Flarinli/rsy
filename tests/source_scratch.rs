@@ -29,7 +29,7 @@ fn cli_refuses_source_side_scratch_before_session_journals() {
     std::fs::write(dest.path().join("extra"), b"must survive").unwrap();
     let before = snapshot(source.path());
     for scratch in [source.path().to_path_buf(), source.path().join("nested")] {
-        let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+        let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
             .args(["--delete", "--max-delete", "100%"])
             .arg(format!("{}/", source.path().display()))
             .arg(dest.path())
@@ -83,7 +83,7 @@ fn cli_resolves_scratch_and_source_aliases_but_accepts_temp_ancestor() {
         (&source_alias, &source, false),
         (&source, &parent_path, true),
     ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+        let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
             .arg(format!("{}/", root.display()))
             .arg(dest.path())
             .env("TMPDIR", scratch)

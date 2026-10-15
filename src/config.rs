@@ -36,7 +36,7 @@ pub struct Profile {
 }
 
 impl Config {
-    /// Load config from ~/.config/sy/config.toml
+    /// Load config from ~/.config/rsy/config.toml
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path()?;
 
@@ -56,7 +56,7 @@ impl Config {
         let config_dir = dirs::config_dir()
             .context("Cannot find config directory (XDG_CONFIG_HOME or ~/.config)")?;
 
-        Ok(config_dir.join("sy").join("config.toml"))
+        Ok(config_dir.join("rsy").join("config.toml"))
     }
 
     /// Get a profile by name
@@ -168,7 +168,7 @@ destination = "~/dst"
     fn test_config_path() {
         let path = Config::config_path().unwrap();
         // Check path components instead of string representation (cross-platform)
-        assert!(path.parent().unwrap().ends_with("sy"));
+        assert!(path.parent().unwrap().ends_with("rsy"));
         assert_eq!(path.file_name().unwrap(), "config.toml");
     }
 

@@ -1,6 +1,6 @@
-# sy — Fast File Sync
+# rsy — Fast File Sync
 
-`sy /source/ /dest` — rsync's useful mental model, rebuilt around a modern bounded synchronization engine.
+`rsy /source/ /dest` — rsync's useful mental model, rebuilt around a modern bounded synchronization engine.
 
 ## For AI Agents
 
@@ -43,13 +43,13 @@ source EntryStream ─┐
 
 There is one synchronization engine. Local and remote endpoints feed the same reconciler.
 
-There is one executable. `sy` is both the user-facing client and the private remote agent (`sy __serve`). `sy-remote` is legacy and must be removed before 0.5.
+There is one executable. `rsy` is both the user-facing client and the private remote agent (`rsy __serve`). `sy-remote` is legacy and must be removed before 0.5.
 
 SSH uses the user's external OpenSSH process as the transport substrate. The final architecture does not embed `ssh2` or maintain a second SSH configuration parser.
 
 ## Non-Negotiable Safety Invariants
 
-`sy` mutates user data. Data loss is the highest-severity bug.
+`rsy` mutates user data. Data loss is the highest-severity bug.
 
 ### Transactional destination visibility
 
@@ -165,9 +165,9 @@ Release goals include static Linux artifacts for at least:
 - `x86_64-unknown-linux-musl`
 - `aarch64-unknown-linux-musl`
 
-The remote peer is the same `sy` executable running `__serve`; no separate `sy-remote` artifact.
+The remote peer is the same `rsy` executable running `__serve`; no separate `sy-remote` artifact.
 
-A later bootstrap mechanism may upload/cache a trusted compatible static agent when `sy` is not already installed remotely.
+A later bootstrap mechanism may upload/cache a trusted compatible static agent when `rsy` is not already installed remotely.
 
 ## Code Standards
 

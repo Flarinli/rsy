@@ -15,15 +15,15 @@ fn setup_files(dir: &TempDir, count: usize) {
 }
 
 fn sync(source: &TempDir, dest: &TempDir, options: &[&str]) -> Output {
-    let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
         .arg(format!("{}/", source.path().display()))
         .arg(dest.path())
         .args(options)
         .output()
-        .expect("run benchmark sy binary");
+        .expect("run benchmark rsy binary");
     assert!(
         output.status.success(),
-        "sy failed: {}",
+        "rsy failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     output

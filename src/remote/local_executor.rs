@@ -742,7 +742,8 @@ impl LocalSyncExecutor {
                 // must not treat the mismatched destination as a delta
                 // basis: staging replaces it wholesale.
                 update: destination.is_some(),
-                verify: self.verify_on_write,
+                // Source removal requires strong byte parity, not quick equality.
+                verify: self.verify_on_write || self.remove_source_files,
                 follow_symlinks: self.follow_symlinks,
                 rate_limiter: self.rate_limiter.clone(),
                 identity: crate::endpoint::transfer::TransferIdentity {

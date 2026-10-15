@@ -93,7 +93,7 @@ test_runtime() {
 
     # Try to use --preserve-acls without feature
     local output
-    output=$(./target/release/sy /tmp/test1 /tmp/test2 --preserve-acls --dry-run 2>&1 || true)
+    output=$(./target/release/rsy /tmp/test1 /tmp/test2 --preserve-acls --dry-run 2>&1 || true)
 
     # Cleanup
     rm -rf /tmp/test1 /tmp/test2
@@ -140,8 +140,8 @@ run_tests_in_container() {
         echo "  ✓ Runtime error message is correct"
         echo ""
         log_info "Ready for:"
-        echo "  • cargo install sy                 → Works everywhere"
-        echo "  • cargo install sy --features acl  → Requires libacl-devel on Linux"
+        echo "  • cargo install rsy                 → Works everywhere"
+        echo "  • cargo install rsy --features acl  → Requires libacl-devel on Linux"
         echo ""
         return 0
     else
@@ -162,8 +162,8 @@ main() {
         echo ""
 
         docker run --rm \
-            -v "$(pwd):/sy" \
-            -w /sy \
+            -v "$(pwd):/rsy" \
+            -w /rsy \
             fedora:latest \
             bash -c "
                 echo 'Installing build dependencies...'

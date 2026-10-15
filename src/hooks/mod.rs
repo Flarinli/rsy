@@ -38,38 +38,38 @@ pub struct HookContext {
 impl HookContext {
     pub fn to_env_vars(&self) -> HashMap<String, String> {
         let mut vars = HashMap::new();
-        vars.insert("SY_SOURCE".to_string(), self.source.clone());
-        vars.insert("SY_DESTINATION".to_string(), self.destination.clone());
+        vars.insert("RSY_SOURCE".to_string(), self.source.clone());
+        vars.insert("RSY_DESTINATION".to_string(), self.destination.clone());
         vars.insert(
-            "SY_FILES_SCANNED".to_string(),
+            "RSY_FILES_SCANNED".to_string(),
             self.files_scanned.to_string(),
         );
         vars.insert(
-            "SY_FILES_CREATED".to_string(),
+            "RSY_FILES_CREATED".to_string(),
             self.files_created.to_string(),
         );
         vars.insert(
-            "SY_FILES_UPDATED".to_string(),
+            "RSY_FILES_UPDATED".to_string(),
             self.files_updated.to_string(),
         );
         vars.insert(
-            "SY_FILES_DELETED".to_string(),
+            "RSY_FILES_DELETED".to_string(),
             self.files_deleted.to_string(),
         );
         vars.insert(
-            "SY_FILES_SKIPPED".to_string(),
+            "RSY_FILES_SKIPPED".to_string(),
             self.files_skipped.to_string(),
         );
         vars.insert(
-            "SY_BYTES_TRANSFERRED".to_string(),
+            "RSY_BYTES_TRANSFERRED".to_string(),
             self.bytes_transferred.to_string(),
         );
         vars.insert(
-            "SY_DURATION_SECS".to_string(),
+            "RSY_DURATION_SECS".to_string(),
             self.duration_secs.to_string(),
         );
         vars.insert(
-            "SY_DRY_RUN".to_string(),
+            "RSY_DRY_RUN".to_string(),
             if self.dry_run { "1" } else { "0" }.to_string(),
         );
         vars
@@ -114,7 +114,7 @@ impl HookExecutor {
         let config_dir = dirs::config_dir().ok_or_else(|| {
             crate::error::SyncError::Config("Could not determine config directory".to_string())
         })?;
-        Ok(config_dir.join("sy").join("hooks"))
+        Ok(config_dir.join("rsy").join("hooks"))
     }
 
     /// Find hook script for given type
@@ -289,11 +289,11 @@ mod tests {
         };
 
         let vars = context.to_env_vars();
-        assert_eq!(vars.get("SY_SOURCE").unwrap(), "/src");
-        assert_eq!(vars.get("SY_DESTINATION").unwrap(), "/dst");
-        assert_eq!(vars.get("SY_FILES_SCANNED").unwrap(), "100");
-        assert_eq!(vars.get("SY_FILES_CREATED").unwrap(), "10");
-        assert_eq!(vars.get("SY_DRY_RUN").unwrap(), "0");
+        assert_eq!(vars.get("RSY_SOURCE").unwrap(), "/src");
+        assert_eq!(vars.get("RSY_DESTINATION").unwrap(), "/dst");
+        assert_eq!(vars.get("RSY_FILES_SCANNED").unwrap(), "100");
+        assert_eq!(vars.get("RSY_FILES_CREATED").unwrap(), "10");
+        assert_eq!(vars.get("RSY_DRY_RUN").unwrap(), "0");
     }
 
     #[test]
@@ -330,7 +330,7 @@ mod tests {
         // Create a simple hook that echoes environment variables
         fs::write(
             &hook_path,
-            "#!/bin/sh\necho \"Source: $SY_SOURCE\"\necho \"Files: $SY_FILES_SCANNED\"\n",
+            "#!/bin/sh\necho \"Source: $RSY_SOURCE\"\necho \"Files: $RSY_FILES_SCANNED\"\n",
         )
         .unwrap();
 

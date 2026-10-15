@@ -11,7 +11,7 @@ type TestScan = (
 #[tokio::test]
 async fn unsafe_scratch_is_refused_before_scanner_writes() {
     use futures::TryStreamExt;
-    if let Some(root) = std::env::var_os("SY_TEST_UNSAFE_SCRATCH_ROOT") {
+    if let Some(root) = std::env::var_os("RSY_TEST_UNSAFE_SCRATCH_ROOT") {
         let root = PathBuf::from(root);
         let names = || {
             let mut names: Vec<_> = std::fs::read_dir(&root)
@@ -61,7 +61,7 @@ async fn unsafe_scratch_is_refused_before_scanner_writes() {
     std::fs::write(root.path().join("file"), b"source").unwrap();
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .args(["--exact", "endpoint::local_entry_scan::resource_tests::unsafe_scratch_is_refused_before_scanner_writes"])
-        .env("SY_TEST_UNSAFE_SCRATCH_ROOT", root.path())
+        .env("RSY_TEST_UNSAFE_SCRATCH_ROOT", root.path())
         .env("TMPDIR", &scratch).output().unwrap();
     assert!(
         output.status.success(),
@@ -91,7 +91,7 @@ fn tiny_worker(root: PathBuf) -> TestScan {
 #[cfg(unix)]
 #[tokio::test]
 async fn deep_wide_tiny_budget_low_fd_and_cancellation_cleanup() {
-    if let Some(root) = std::env::var_os("SY_TEST_LOCAL_SCAN_FD_ROOT") {
+    if let Some(root) = std::env::var_os("RSY_TEST_LOCAL_SCAN_FD_ROOT") {
         let root = PathBuf::from(root);
         let scratch_parent = tempfile::env::temp_dir();
         let root_modified = std::fs::metadata(&root).unwrap().modified().unwrap();
@@ -141,7 +141,7 @@ async fn deep_wide_tiny_budget_low_fd_and_cancellation_cleanup() {
                 path.file_name()
                     .unwrap()
                     .to_string_lossy()
-                    .starts_with("sy-scan-")
+                    .starts_with("rsy-scan-")
             })
             .unwrap();
         let moved_scratch = scratch_parent.join("injected-scratch-failure");
@@ -186,7 +186,7 @@ async fn deep_wide_tiny_budget_low_fd_and_cancellation_cleanup() {
     use std::os::unix::process::CommandExt;
     let mut child = std::process::Command::new(std::env::current_exe().unwrap());
     child.args(["--exact", "endpoint::local_entry_scan::resource_tests::deep_wide_tiny_budget_low_fd_and_cancellation_cleanup"])
-        .env("SY_TEST_LOCAL_SCAN_FD_ROOT", root.path()).env("TMPDIR", scratch.path());
+        .env("RSY_TEST_LOCAL_SCAN_FD_ROOT", root.path()).env("TMPDIR", scratch.path());
     // SAFETY: pre_exec uses only async-signal-safe syscalls and stack buffers;
     // it does not allocate, take locks, or touch the async runtime.
     unsafe {

@@ -1,4 +1,4 @@
-extern crate self as sy;
+extern crate self as rsy;
 
 // Public API — these are the stable library exports
 pub mod cli;

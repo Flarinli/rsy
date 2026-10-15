@@ -8,7 +8,7 @@ use std::process::Command;
 use tempfile::TempDir;
 
 fn sy_bin() -> String {
-    env!("CARGO_BIN_EXE_sy").to_string()
+    env!("CARGO_BIN_EXE_rsy").to_string()
 }
 
 fn setup_test_dir() -> (TempDir, TempDir) {
@@ -653,7 +653,7 @@ fn test_archive_short_flag_preserves_permissions() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "sy -a failed");
+    assert!(output.status.success(), "rsy -a failed");
 
     // Verify permissions preserved
     let dest_perms = fs::metadata(dest.path().join("script.sh"))

@@ -29,7 +29,7 @@ pub(crate) mod namespace;
 /// # Example
 ///
 /// ```rust,ignore
-/// use sy::fs_util::supports_cow_reflinks;
+/// use rsy::fs_util::supports_cow_reflinks;
 /// use std::path::Path;
 ///
 /// let path = Path::new("/tmp/test.txt");
@@ -236,9 +236,9 @@ pub fn has_hard_links(_path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     #[cfg(unix)]
-    use sy::engine::namespace::Folding;
+    use rsy::engine::namespace::Folding;
+    use std::fs;
     use tempfile::TempDir;
 
     /// Behavioral oracle: create a case-variant name beside an existing one and

@@ -1,10 +1,10 @@
 use crate::endpoint::{Endpoint, FileMetadata};
 use crate::error::{Result, SyncError};
 use async_trait::async_trait;
+use rsy::engine::domain::EntryIdentity;
 use std::fs::File;
 use std::path::Path;
 use std::pin::Pin;
-use sy::engine::domain::EntryIdentity;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// A streaming reader returned by an endpoint.
@@ -204,7 +204,7 @@ pub trait PendingPublication: Send + std::fmt::Debug {
     async fn finalize(
         self: Box<Self>,
         flags: Option<u32>,
-    ) -> Result<sy::rooted_fs::PublishedFileProof>;
+    ) -> Result<rsy::rooted_fs::PublishedFileProof>;
 }
 
 /// Abort owned staging while retaining both the operation and cleanup failures.
@@ -231,7 +231,7 @@ pub(crate) async fn abort_staged_writer(
 pub(crate) enum FinalizationOutcome {
     Published {
         verification: VerificationStatus,
-        proof: sy::rooted_fs::PublishedFileProof,
+        proof: rsy::rooted_fs::PublishedFileProof,
     },
     VerificationFailed {
         expected: blake3::Hash,
@@ -242,7 +242,7 @@ pub(crate) enum FinalizationOutcome {
 impl FinalizationOutcome {
     pub(crate) fn into_publication(
         self,
-    ) -> Result<(VerificationStatus, sy::rooted_fs::PublishedFileProof)> {
+    ) -> Result<(VerificationStatus, rsy::rooted_fs::PublishedFileProof)> {
         match self {
             Self::Published {
                 verification,
@@ -319,7 +319,7 @@ pub(crate) async fn finalize_staged_writer(
 pub struct StreamCopyResult {
     pub bytes_written: u64,
     pub verification: VerificationStatus,
-    pub publication: sy::rooted_fs::PublishedFileProof,
+    pub publication: rsy::rooted_fs::PublishedFileProof,
 }
 
 /// Inputs for one bounded streaming copy.

@@ -1,18 +1,18 @@
 #![cfg(unix)]
 
 use futures::TryStreamExt;
+use rsy::endpoint::local_entry_scan::local_entry_stream;
+use rsy::engine::controller::{preflight_sync_scoped_with_content, SyncController};
+use rsy::engine::domain::Entry;
+use rsy::engine::planner::{ComparisonMode, ComparisonPolicy};
+use rsy::engine::scan::ScanRequest;
+use rsy::engine::scheduler::{ResourceBudget, Scheduler};
+use rsy::remote::local_executor::LocalSyncExecutor;
+use rsy::rooted_fs::RootedFs;
 use std::num::NonZeroUsize;
 use std::path::Path;
-use sy::endpoint::local_entry_scan::local_entry_stream;
-use sy::engine::controller::{preflight_sync_scoped_with_content, SyncController};
-use sy::engine::domain::Entry;
-use sy::engine::planner::{ComparisonMode, ComparisonPolicy};
-use sy::engine::scan::ScanRequest;
-use sy::engine::scheduler::{ResourceBudget, Scheduler};
-use sy::remote::local_executor::LocalSyncExecutor;
-use sy::rooted_fs::RootedFs;
 
-async fn observed(stream: sy::engine::reconcile::EntryStream) -> Entry {
+async fn observed(stream: rsy::engine::reconcile::EntryStream) -> Entry {
     stream.try_collect::<Vec<_>>().await.unwrap().remove(0)
 }
 
@@ -26,14 +26,14 @@ async fn replacing_destination_after_checksum_preflight_retains_source() {
     let dest = tempfile::TempDir::new().unwrap();
     std::fs::write(source.path().join("file"), b"original").unwrap();
     std::fs::write(dest.path().join("file"), b"original").unwrap();
-    let authority = sy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
+    let authority = rsy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
         .await
         .unwrap();
     let source_rooted = authority.rooted();
     let dest_rooted = RootedFs::open(dest.path().to_path_buf()).await.unwrap();
     let (dest_rooted, namespace) = dest_rooted.with_namespace_qualification().await.unwrap();
     let plan = preflight_sync_scoped_with_content(
-        sy::engine::reconcile::OrderedReconciler::new(
+        rsy::engine::reconcile::OrderedReconciler::new(
             authority.entries(ScanRequest::default()),
             local_entry_stream(dest.path().to_path_buf(), ScanRequest::default()),
         ),
@@ -42,21 +42,21 @@ async fn replacing_destination_after_checksum_preflight_retains_source() {
             ..ComparisonPolicy::default()
         },
         None,
-        sy::engine::namespace::NamespacePreflight::new(&namespace),
+        rsy::engine::namespace::NamespacePreflight::new(&namespace),
         |_| true,
         |_| futures::future::ready(Ok(true)),
         move |source, dest| {
             let source_rooted = source_rooted.clone();
             let dest_rooted = dest_rooted.clone();
             async move {
-                let source_hash = sy::remote::hash::hash_rooted_file(
+                let source_hash = rsy::remote::hash::hash_rooted_file(
                     source_rooted,
                     source.path,
                     source.size,
                     source.identity.unwrap(),
                 )
                 .await?;
-                let dest_hash = sy::remote::hash::hash_rooted_file(
+                let dest_hash = rsy::remote::hash::hash_rooted_file(
                     dest_rooted,
                     dest.path,
                     dest.size,
@@ -74,7 +74,7 @@ async fn replacing_destination_after_checksum_preflight_retains_source() {
     let controller = SyncController::new(
         LocalSyncExecutor::new(
             authority,
-            sy::endpoint::local::LocalEndpoint::new(dest.path().to_path_buf()),
+            rsy::endpoint::local::LocalEndpoint::new(dest.path().to_path_buf()),
             scheduler(),
         )
         .with_remove_source_files(true),
@@ -95,7 +95,7 @@ async fn requested_xattr_parity_is_required_before_removing_unchanged_source() {
     std::fs::write(source.path().join("file"), b"same").unwrap();
     std::fs::write(dest.path().join("file"), b"same").unwrap();
     xattr::set(source.path().join("file"), "user.sy-preservation", b"keep").unwrap();
-    let result = std::process::Command::new(env!("CARGO_BIN_EXE_sy"))
+    let result = std::process::Command::new(env!("CARGO_BIN_EXE_rsy"))
         .arg(format!("{}/", source.path().display()))
         .arg(dest.path())
         .args(["--remove-source-files", "--checksum", "-X"])
@@ -120,7 +120,7 @@ async fn checksum_mode_does_not_forge_a_content_receipt_for_unchanged_links() {
     let dest = tempfile::TempDir::new().unwrap();
     std::os::unix::fs::symlink("target", source.path().join("link")).unwrap();
     std::os::unix::fs::symlink("target", dest.path().join("link")).unwrap();
-    let result = std::process::Command::new(env!("CARGO_BIN_EXE_sy"))
+    let result = std::process::Command::new(env!("CARGO_BIN_EXE_rsy"))
         .arg(format!("{}/", source.path().display()))
         .arg(dest.path())
         .args(["--remove-source-files", "--checksum", "--links=preserve"])
@@ -143,13 +143,13 @@ async fn checksum_mode_does_not_forge_a_content_receipt_for_unchanged_links() {
 
 #[tokio::test]
 async fn remote_parity_rechecks_identity_and_selected_metadata() {
-    use sy::engine::controller::SyncPlanExecutor;
-    use sy::engine::planner::ExecutionPolicy;
-    use sy::protocol::Operation;
-    use sy::remote::push::RemotePushExecutor;
-    use sy::remote::router::RouterConfig;
-    use sy::remote::runtime::{ClientRemoteSession, IncomingRequest, ServerRemoteSession};
-    use sy::transfer::delta::BasisIndexLimits;
+    use rsy::engine::controller::SyncPlanExecutor;
+    use rsy::engine::planner::ExecutionPolicy;
+    use rsy::protocol::Operation;
+    use rsy::remote::push::RemotePushExecutor;
+    use rsy::remote::router::RouterConfig;
+    use rsy::remote::runtime::{ClientRemoteSession, IncomingRequest, ServerRemoteSession};
+    use rsy::transfer::delta::BasisIndexLimits;
 
     for (replace, same_entry) in [(true, false), (false, false), (false, true)] {
         let source = tempfile::TempDir::new().unwrap();
@@ -159,7 +159,7 @@ async fn remote_parity_rechecks_identity_and_selected_metadata() {
         if !replace && !same_entry {
             xattr::set(source.path().join("file"), "user.sy-preservation", b"keep").unwrap();
         }
-        let authority = sy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
+        let authority = rsy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
             .await
             .unwrap();
         let source_entry = observed(authority.entries(ScanRequest::default())).await;
@@ -234,7 +234,7 @@ async fn remote_parity_rechecks_identity_and_selected_metadata() {
 async fn self_sync_cannot_remove_the_only_copy() {
     let root = tempfile::TempDir::new().unwrap();
     std::fs::write(root.path().join("file"), b"only copy").unwrap();
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_sy"))
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_rsy"))
         .arg(format!("{}/", root.path().display()))
         .arg(root.path())
         .args(["--checksum", "--remove-source-files"])
@@ -259,7 +259,7 @@ async fn standalone_existing_aliases_continue_after_own_source_unlink() {
     }
     let original = std::fs::metadata(source.path().join("a")).unwrap();
     assert_eq!(original.nlink(), 4);
-    let authority = sy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
+    let authority = rsy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
         .await
         .unwrap();
     let source_rooted = authority.rooted();
@@ -271,7 +271,7 @@ async fn standalone_existing_aliases_continue_after_own_source_unlink() {
         .await
         .unwrap();
     let plan = preflight_sync_scoped_with_content(
-        sy::engine::reconcile::OrderedReconciler::new(
+        rsy::engine::reconcile::OrderedReconciler::new(
             authority.entries(ScanRequest::default()),
             local_entry_stream(destination.path().to_path_buf(), ScanRequest::default()),
         ),
@@ -280,21 +280,21 @@ async fn standalone_existing_aliases_continue_after_own_source_unlink() {
             ..ComparisonPolicy::default()
         },
         None,
-        sy::engine::namespace::NamespacePreflight::new(&namespace),
+        rsy::engine::namespace::NamespacePreflight::new(&namespace),
         |_| true,
         |_| futures::future::ready(Ok(true)),
         move |source, destination| {
             let source_rooted = source_rooted.clone();
             let destination_rooted = destination_rooted.clone();
             async move {
-                let source_hash = sy::remote::hash::hash_rooted_file(
+                let source_hash = rsy::remote::hash::hash_rooted_file(
                     source_rooted,
                     source.path,
                     source.size,
                     source.identity.unwrap(),
                 )
                 .await?;
-                let destination_hash = sy::remote::hash::hash_rooted_file(
+                let destination_hash = rsy::remote::hash::hash_rooted_file(
                     destination_rooted,
                     destination.path,
                     destination.size,
@@ -310,7 +310,7 @@ async fn standalone_existing_aliases_continue_after_own_source_unlink() {
     let controller = SyncController::new(
         LocalSyncExecutor::new(
             authority,
-            sy::endpoint::local::LocalEndpoint::new(destination.path().to_path_buf()),
+            rsy::endpoint::local::LocalEndpoint::new(destination.path().to_path_buf()),
             scheduler(),
         )
         .with_remove_source_files(true),
@@ -334,8 +334,8 @@ async fn standalone_existing_aliases_continue_after_own_source_unlink() {
 
 #[tokio::test]
 async fn root_aliases_are_refused_but_distinct_hardlink_names_are_allowed() {
-    use sy::engine::controller::SyncPlanExecutor;
-    use sy::engine::planner::ExecutionPolicy;
+    use rsy::engine::controller::SyncPlanExecutor;
+    use rsy::engine::planner::ExecutionPolicy;
 
     let source = tempfile::TempDir::new().unwrap();
     let destination = tempfile::TempDir::new().unwrap();
@@ -343,13 +343,13 @@ async fn root_aliases_are_refused_but_distinct_hardlink_names_are_allowed() {
     std::fs::write(source.path().join("file"), b"only copy").unwrap();
     std::os::unix::fs::symlink(source.path(), &alias).unwrap();
     std::fs::hard_link(source.path().join("file"), destination.path().join("file")).unwrap();
-    let authority = sy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
+    let authority = rsy::endpoint::source_root::SourceRoot::open(source.path().to_path_buf())
         .await
         .unwrap();
     let entry = observed(authority.entries(ScanRequest::default())).await;
     let executor = LocalSyncExecutor::new(
         authority.clone(),
-        sy::endpoint::local::LocalEndpoint::new(alias),
+        rsy::endpoint::local::LocalEndpoint::new(alias),
         scheduler(),
     )
     .with_remove_source_files(true);
@@ -374,7 +374,7 @@ async fn root_aliases_are_refused_but_distinct_hardlink_names_are_allowed() {
     };
     let executor = LocalSyncExecutor::new(
         authority,
-        sy::endpoint::local::LocalEndpoint::new(destination.path().to_path_buf()),
+        rsy::endpoint::local::LocalEndpoint::new(destination.path().to_path_buf()),
         scheduler(),
     )
     .with_remove_source_files(true);

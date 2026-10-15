@@ -205,7 +205,7 @@ impl NameSpool {
         let secret = scan_secret()?;
         Ok(Self {
             scratch: tempfile::Builder::new()
-                .prefix("sy-scan-")
+                .prefix("rsy-scan-")
                 .tempdir_in(parent)?,
             secret,
             health: Health::new(),

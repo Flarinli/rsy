@@ -1,4 +1,4 @@
-# Contributing to sy
+# Contributing to rsy
 
 ## Development Setup
 
@@ -18,8 +18,8 @@ sudo pacman -S acl
 
 **Build:**
 ```bash
-git clone https://github.com/nijaru/sy.git
-cd sy
+git clone https://github.com/Flarinli/rsy.git
+cd rsy
 
 # Build and test (no optional features)
 cargo build
@@ -75,4 +75,4 @@ cargo bench
 
 ## Questions?
 
-Open an issue: https://github.com/nijaru/sy/issues
+Open an issue: https://github.com/Flarinli/rsy/issues

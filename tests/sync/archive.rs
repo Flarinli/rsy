@@ -8,7 +8,7 @@ use std::process::Command;
 use tempfile::TempDir;
 
 fn sy_bin() -> String {
-    env!("CARGO_BIN_EXE_sy").to_string()
+    env!("CARGO_BIN_EXE_rsy").to_string()
 }
 
 fn setup_git_repo(dir: &TempDir) {
@@ -49,7 +49,7 @@ fn test_archive_includes_git_directory() {
 
     assert!(
         output.status.success(),
-        "sy -a failed: {}",
+        "rsy -a failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -87,7 +87,7 @@ fn test_archive_includes_hidden_files() {
 
     assert!(
         output.status.success(),
-        "sy -a failed: {}",
+        "rsy -a failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -132,7 +132,7 @@ fn test_archive_preserves_permissions() {
 
     assert!(
         output.status.success(),
-        "sy -a failed: {}",
+        "rsy -a failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -172,7 +172,7 @@ fn test_archive_syncs_gitignored_files() {
 
     assert!(
         output.status.success(),
-        "sy -a failed: {}",
+        "rsy -a failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -209,7 +209,7 @@ fn test_default_includes_git() {
 
     assert!(
         output.status.success(),
-        "sy failed: {}",
+        "rsy failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -242,7 +242,7 @@ fn test_exclude_vcs_excludes_git() {
 
     assert!(
         output.status.success(),
-        "sy --exclude-vcs failed: {}",
+        "rsy --exclude-vcs failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -286,7 +286,7 @@ fn test_default_syncs_gitignored_files() {
 
     assert!(
         output.status.success(),
-        "sy failed: {}",
+        "rsy failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -327,7 +327,7 @@ fn test_gitignore_flag_respects_gitignore() {
 
     assert!(
         output.status.success(),
-        "sy --gitignore failed: {}",
+        "rsy --gitignore failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -372,7 +372,7 @@ fn test_archive_is_complete_backup() {
 
     assert!(
         output.status.success(),
-        "sy -a failed: {}",
+        "rsy -a failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -414,7 +414,7 @@ fn test_gitignore_without_exclude_vcs() {
 
     assert!(
         output.status.success(),
-        "sy --gitignore failed: {}",
+        "rsy --gitignore failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -457,7 +457,7 @@ fn test_developer_workflow_flags() {
 
     assert!(
         output.status.success(),
-        "sy --gitignore --exclude-vcs failed: {}",
+        "rsy --gitignore --exclude-vcs failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 

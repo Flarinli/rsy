@@ -9,7 +9,7 @@ use std::process::Command;
 use tempfile::TempDir;
 
 fn sync(source: &Path, dest: &Path, options: &[&str]) -> serde_json::Value {
-    let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
         .arg(format!("{}/", source.display()))
         .arg(dest)
         .args(["--json", "--preserve-times"])

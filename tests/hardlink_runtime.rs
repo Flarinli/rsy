@@ -37,7 +37,7 @@ use std::path::Path;
 use std::process::Command;
 
 fn run(source: &Path, destination: &Path, home: &Path, flags: &[&str]) {
-    let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
         .args(["-rH", "--no-hooks", "-j4"])
         .args(flags)
         .arg(format!("{}/", source.display()))
@@ -185,11 +185,11 @@ fn source_xattr_override_does_not_read_discarded_old_values() {
         std::fs::hard_link(destination.join("a"), destination.join("b")).unwrap();
         let outside = fixture.path().join("outside");
         std::fs::hard_link(destination.join("a"), &outside).unwrap();
-        let large = vec![b'x'; sy::protocol::MAX_XATTR_TOTAL_BYTES + 1];
+        let large = vec![b'x'; rsy::protocol::MAX_XATTR_TOTAL_BYTES + 1];
         xattr::set(&outside, "user.sy-old-large", &large).unwrap();
         let source_before = observe(&source.join("a"));
         let old_before = observe(&outside);
-        let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+        let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
             .args(["-rH", "--no-hooks"])
             .arg(if source_xattrs { "-X" } else { "-p" })
             .arg(format!("{}/", source.display()))

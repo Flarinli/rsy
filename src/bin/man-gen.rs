@@ -1,13 +1,13 @@
 use anyhow::{bail, Context, Result};
+use rsy::cli::Arguments;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use sy::cli::Arguments;
 
-/// Generate sy's manual, or print a native shell completion script.
+/// Generate rsy's manual, or print a native shell completion script.
 #[derive(usage::Cli)]
 #[usage(bin = "man-gen", unknown_flags = "error", args_override_self = false)]
 struct Args {
-    /// Print completions instead of writing man/sy.1
+    /// Print completions instead of writing man/rsy.1
     #[usage(long, choices("bash", "fish", "zsh", "powershell", "nu"))]
     completion: Option<String>,
 }
@@ -22,7 +22,7 @@ fn main() -> Result<()> {
     }
 
     // usage-rs owns the declaration; usage's documentation generator consumes
-    // its KDL. Generation is a development task, not a runtime dependency of sy.
+    // its KDL. Generation is a development task, not a runtime dependency of rsy.
     let mut child = Command::new("usage")
         .args(["generate", "manpage", "--file", "-"])
         .stdin(Stdio::piped())
@@ -42,7 +42,7 @@ fn main() -> Result<()> {
         bail!("usage manpage generator failed: {}", output.status);
     }
 
-    let path = std::path::Path::new("man/sy.1");
+    let path = std::path::Path::new("man/rsy.1");
     std::fs::create_dir_all("man")?;
     std::fs::write(path, output.stdout)?;
     eprintln!("Generated man page: {}", path.display());

@@ -10,7 +10,7 @@ use std::time::Duration;
 use tempfile::TempDir;
 
 fn sy_bin() -> String {
-    env!("CARGO_BIN_EXE_sy").to_string()
+    env!("CARGO_BIN_EXE_rsy").to_string()
 }
 
 fn setup_test_dir() -> (TempDir, TempDir) {

@@ -12,7 +12,7 @@ fn cli(source: &Path, destination: &Path, home: &Path, remove: bool) {
             "ulimit -n 64; exec \"$@\"",
             "hardlink-preparation-test",
         ])
-        .arg(env!("CARGO_BIN_EXE_sy"))
+        .arg(env!("CARGO_BIN_EXE_rsy"))
         .args(["-rHpt", "-j1", "--no-hooks"])
         .arg(format!("{}/", source.display()))
         .arg(destination)

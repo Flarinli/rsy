@@ -1,18 +1,18 @@
-//! Replacement backups through the real v3 client and `sy __serve` fetch path.
+//! Replacement backups through the real v3 client and `rsy __serve` fetch path.
 #![cfg(unix)]
 
 use futures::StreamExt;
+use rsy::engine::domain::{Entry, EntryKind, SyncOp};
+use rsy::engine::planner::ExecutionPolicy;
+use rsy::engine::scan::ScanRequest;
+use rsy::engine::scheduler::{ResourceBudget, Scheduler};
+use rsy::remote::pull::{RemotePullError, RemotePullExecutor};
+use rsy::remote::pull_lower::lower_pull_op;
+use rsy::remote::runtime::ClientRemoteSession;
+use rsy::rooted_fs::RootedFs;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::time::Duration;
-use sy::engine::domain::{Entry, EntryKind, SyncOp};
-use sy::engine::planner::ExecutionPolicy;
-use sy::engine::scan::ScanRequest;
-use sy::engine::scheduler::{ResourceBudget, Scheduler};
-use sy::remote::pull::{RemotePullError, RemotePullExecutor};
-use sy::remote::pull_lower::lower_pull_op;
-use sy::remote::runtime::ClientRemoteSession;
-use sy::rooted_fs::RootedFs;
 use tokio::process::{Child, Command};
 
 const ORIGINAL: &[u8] = b"precious original destination";
@@ -24,7 +24,7 @@ struct Pull {
     destination_root: tempfile::TempDir,
     source: Entry,
     destination: Entry,
-    destination_binding: sy::rooted_fs::operand::BoundDestination,
+    destination_binding: rsy::rooted_fs::operand::BoundDestination,
     client: ClientRemoteSession,
     child: Child,
 }
@@ -38,7 +38,7 @@ impl Pull {
         }
         std::fs::write(source_root.path().join(FILE), REPLACEMENT).unwrap();
         std::fs::write(destination_root.path().join(FILE), ORIGINAL).unwrap();
-        let mut child = Command::new(env!("CARGO_BIN_EXE_sy"))
+        let mut child = Command::new(env!("CARGO_BIN_EXE_rsy"))
             .arg("__serve")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -49,7 +49,7 @@ impl Pull {
         let client = ClientRemoteSession::connect(
             child.stdout.take().unwrap(),
             child.stdin.take().unwrap(),
-            sy::protocol::Operation::Pull,
+            rsy::protocol::Operation::Pull,
             source_root.path(),
             Default::default(),
         )
@@ -65,9 +65,9 @@ impl Pull {
                 source = Some(entry);
             }
         }
-        let mut destination_binding = sy::rooted_fs::operand::BoundDestination::open(
+        let mut destination_binding = rsy::rooted_fs::operand::BoundDestination::open(
             destination_root.path().to_path_buf(),
-            sy::rooted_fs::operand::SourceShape::Directory { basename: None },
+            rsy::rooted_fs::operand::SourceShape::Directory { basename: None },
         )
         .await
         .unwrap();
@@ -76,17 +76,17 @@ impl Pull {
             .with_namespace_qualification()
             .await
             .unwrap();
-        use sy::engine::namespace::{NamespaceParent, NamespaceQualification};
+        use rsy::engine::namespace::{NamespaceParent, NamespaceQualification};
         namespace.qualify(NamespaceParent::Root).await.unwrap();
         namespace
             .qualify(NamespaceParent::Directory(
-                sy::engine::domain::RelativePath::new("nested").unwrap(),
+                rsy::engine::domain::RelativePath::new("nested").unwrap(),
             ))
             .await
             .unwrap();
         namespace.seal().await.unwrap();
         destination_binding.root = root;
-        let mut destination_entries = sy::endpoint::local_entry_scan::local_entry_stream(
+        let mut destination_entries = rsy::endpoint::local_entry_scan::local_entry_stream(
             destination_root.path().to_path_buf(),
             request,
         );
@@ -114,10 +114,10 @@ impl Pull {
         suffix: &str,
     ) -> Result<(), RemotePullError> {
         let backup_root = if let Some(directory) = &backup_dir {
-            use sy::engine::namespace::NamespaceQualification;
-            let root = sy::rooted_fs::backup::BackupRoot::capture(directory.clone()).await;
+            use rsy::engine::namespace::NamespaceQualification;
+            let root = rsy::rooted_fs::backup::BackupRoot::capture(directory.clone()).await;
             let (namespace, mut existing) = root.prepare().await.unwrap();
-            let mut detector = sy::engine::namespace::NamespaceCollisionDetector::new();
+            let mut detector = rsy::engine::namespace::NamespaceCollisionDetector::new();
             while let Some(entry) = existing.next().await {
                 detector
                     .record(&entry.unwrap().path, &namespace)
@@ -125,13 +125,13 @@ impl Pull {
                     .unwrap();
             }
             existing.close().await.unwrap();
-            let policy = sy::engine::backup::BackupPolicy::local(
+            let policy = rsy::engine::backup::BackupPolicy::local(
                 self.destination_root.path(),
                 Some(directory),
                 suffix.into(),
             )
             .unwrap();
-            let sy::engine::backup::BackupAddress::FixedRoot(path) =
+            let rsy::engine::backup::BackupAddress::FixedRoot(path) =
                 policy.destination(&self.destination.path).unwrap()
             else {
                 panic!("expected external backup");

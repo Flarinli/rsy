@@ -1,6 +1,6 @@
 .TH SY 1
 .SH NAME
-sy \- Modern file synchronization tool
+rsy \- Modern file synchronization tool
 .SH SYNOPSIS
 \fBsy\fR [OPTIONS] [<SOURCE>] [<DESTINATION>]
 .SH DESCRIPTION
@@ -96,7 +96,7 @@ Read exclude patterns from file (one pattern per line)
 Read include patterns from file (one pattern per line)
 .TP
 \fB\-\-exclude\-template\fR \fI<EXCLUDE_TEMPLATE>\fR
-Apply exclude template from ~/.config/sy/templates/ (can be repeated) Examples: "rust", "node", "python"
+Apply exclude template from ~/.config/rsy/templates/ (can be repeated) Examples: "rust", "node", "python"
 .TP
 \fB\-\-verify\fR \fI<VERIFY>\fR
 Verify file integrity against staged BLAKE3 verification
@@ -151,12 +151,12 @@ Does NOT include: \-X (xattrs), \-A (ACLs), \-H (hardlinks) \- add those flags s
 \fB\-\-gitignore\fR
 Filter files based on .gitignore rules (opt\-in)
 
-By default, sy copies all files like rsync/cp. Use this flag to respect .gitignore rules for developer\-friendly syncs.
+By default, rsy copies all files like rsync/cp. Use this flag to respect .gitignore rules for developer\-friendly syncs.
 .TP
 \fB\-\-exclude\-vcs\fR
 Exclude .git directories from the sync (opt\-in)
 
-By default, sy copies .git directories like rsync/cp. Use this flag to skip version control directories for faster syncs.
+By default, rsy copies .git directories like rsync/cp. Use this flag to skip version control directories for faster syncs.
 .TP
 \fB\-\-ignore\-times\fR
 Ignore modification times, always compare checksums (rsync \-\-ignore\-times)
@@ -201,7 +201,7 @@ Maximum deletions allowed \- Absolute count: \-\-max\-delete=1000 \- Percentage:
 .RE
 .TP
 \fB\-r\fR
-Recursive (no\-op: sy is always recursive, for rsync compatibility)
+Recursive (no\-op: rsy is always recursive, for rsync compatibility)
 .TP
 \fB\-h, \-\-help\fR
 Print help
@@ -219,53 +219,53 @@ Destination path (local: /path or remote: user@host:/path) Optional when using \
 \fBBasic sync\fR
 .PP
 .RS 4
-sy /source /destination
+rsy /source /destination
 .RE
 .PP
 \fBPreview changes without applying\fR
 .PP
 .RS 4
-sy /source /destination \-\-dry\-run
+rsy /source /destination \-\-dry\-run
 .RE
 .PP
 \fBMirror mode (delete extra destination files)\fR
 .PP
 .RS 4
-sy /source /destination \-\-delete
+rsy /source /destination \-\-delete
 .RE
 .PP
 \fBParallel transfers (20 workers)\fR
 .PP
 .RS 4
-sy /source /destination \-j 20
+rsy /source /destination \-j 20
 .RE
 .PP
 \fBSync single file\fR
 .PP
 .RS 4
-sy /path/to/file.txt /dest/file.txt
+rsy /path/to/file.txt /dest/file.txt
 .RE
 .PP
 \fBRemote sync (SSH push)\fR
 .PP
 .RS 4
-sy /local user@host:/remote
+rsy /local user@host:/remote
 .RE
 .PP
 \fBRemote sync (SSH pull)\fR
 .PP
 .RS 4
-sy user@host:/remote /local
+rsy user@host:/remote /local
 .RE
 .PP
 \fBQuiet mode (only errors)\fR
 .PP
 .RS 4
-sy /source /destination \-\-quiet
+rsy /source /destination \-\-quiet
 .RE
 .PP
 \fBVerify staged integrity before commit\fR
 .PP
 .RS 4
-sy /source /destination \-\-verify=after
+rsy /source /destination \-\-verify=after
 .RE

@@ -2,9 +2,9 @@
 use crate::cli::SymlinkMode;
 use crate::error::{Result, SyncError};
 use crate::sync::SyncConfig;
+use rsy::engine::controller::{ControllerError, SyncPlan};
+use rsy::engine::domain::{RelativePath, SyncOp, SyncScope};
 use std::path::{Path, PathBuf};
-use sy::engine::controller::{ControllerError, SyncPlan};
-use sy::engine::domain::{RelativePath, SyncOp, SyncScope};
 
 pub(super) async fn resolve(
     source: PathBuf,
@@ -117,7 +117,7 @@ pub(super) async fn validate_effects(
                     _ => None,
                 };
                 if let Some(existing) = existing.filter(|entry| backup && entry.is_file()) {
-                    let path = sy::remote::local_executor::backup_destination_path(
+                    let path = rsy::remote::local_executor::backup_destination_path(
                         &destination_root,
                         &existing.path,
                         backup_dir.as_deref(),

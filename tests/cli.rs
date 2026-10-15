@@ -1,7 +1,7 @@
+use rsy::cli::{Arguments, Cli, SymlinkMode, VerifyMode};
+use rsy::engine::compression::CompressionDetection;
 use std::ffi::OsStr;
 use std::process::{Command, Output};
-use sy::cli::{Arguments, Cli, SymlinkMode, VerifyMode};
-use sy::engine::compression::CompressionDetection;
 use usage::test::{self as harness, Page};
 
 fn parse(words: &[&str]) -> Cli {
@@ -10,7 +10,7 @@ fn parse(words: &[&str]) -> Cli {
 }
 
 fn binary(words: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_sy"))
+    Command::new(env!("CARGO_BIN_EXE_rsy"))
         .args(words)
         .env("NO_COLOR", "1")
         .output()
@@ -306,16 +306,16 @@ fn help_version_spec_and_completions_share_declarations() {
     assert!(!Arguments::to_kdl().contains("__serve"));
     // No parser environment defaults existed before the migration.
     assert!(!Arguments::to_kdl().contains("env="));
-    let completion = binary(&["__complete_word__", "--line", "sy --links "]);
+    let completion = binary(&["__complete_word__", "--line", "rsy --links "]);
     assert!(completion.status.success());
     assert!(String::from_utf8_lossy(&completion.stdout).contains("follow"));
     assert!(completion.stderr.is_empty());
     assert_eq!(
-        harness::candidates(Arguments::spec(), "sy --links "),
+        harness::candidates(Arguments::spec(), "rsy --links "),
         ["follow", "preserve", "skip"]
     );
     assert_eq!(
-        harness::completion(Arguments::spec(), "sy --exclude-from ").files,
+        harness::completion(Arguments::spec(), "rsy --exclude-from ").files,
         Some(usage::test::Files::Any)
     );
     for shell in [
@@ -323,7 +323,7 @@ fn help_version_spec_and_completions_share_declarations() {
         usage::complete::Shell::Fish,
         usage::complete::Shell::Zsh,
     ] {
-        assert!(Arguments::completion_script(shell).contains("sy"));
+        assert!(Arguments::completion_script(shell).contains("rsy"));
     }
 }
 
@@ -363,7 +363,7 @@ fn native_paths_survive_parser() {
     assert_eq!(cli.destination.unwrap().path(), destination);
     // Even on filesystems that reject these bytes (e.g. APFS), the real entry
     // point must get past parsing and report the missing native source.
-    let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
         .args([
             source.as_os_str(),
             destination.as_os_str(),
@@ -410,7 +410,7 @@ fn native_paths_survive_parser() {
             .unwrap()
             .into_cli()
             .is_err());
-        let result = Command::new(env!("CARGO_BIN_EXE_sy"))
+        let result = Command::new(env!("CARGO_BIN_EXE_rsy"))
             .arg(invalid)
             .output()
             .unwrap();
@@ -432,7 +432,7 @@ fn native_paths_survive_real_copy() {
         .join(OsString::from_vec(b"source-\xff".to_vec()));
     let destination = temp.path().join(OsString::from_vec(b"dest-\xfe".to_vec()));
     std::fs::write(&source, b"native paths\n").unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_sy"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rsy"))
         .args([
             source.as_os_str(),
             destination.as_os_str(),

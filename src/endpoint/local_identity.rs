@@ -1,4 +1,4 @@
-use sy::engine::domain::{EntryIdentity, EntryKind};
+use rsy::engine::domain::{EntryIdentity, EntryKind};
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;

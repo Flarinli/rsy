@@ -219,7 +219,7 @@ pub struct Cli {
     #[usage(long, value_hint = usage::ValueHint::FilePath)]
     pub include_from: Option<std::path::PathBuf>,
 
-    /// Apply exclude template from ~/.config/sy/templates/ (can be repeated)
+    /// Apply exclude template from ~/.config/rsy/templates/ (can be repeated)
     /// Examples: "rust", "node", "python"
     #[usage(long)]
     pub exclude_template: Vec<String>,
@@ -299,14 +299,14 @@ pub struct Cli {
 
     /// Filter files based on .gitignore rules (opt-in)
     ///
-    /// By default, sy copies all files like rsync/cp.
+    /// By default, rsy copies all files like rsync/cp.
     /// Use this flag to respect .gitignore rules for developer-friendly syncs.
     #[usage(long)]
     pub gitignore: bool,
 
     /// Exclude .git directories from the sync (opt-in)
     ///
-    /// By default, sy copies .git directories like rsync/cp.
+    /// By default, rsy copies .git directories like rsync/cp.
     /// Use this flag to skip version control directories for faster syncs.
     #[usage(long)]
     pub exclude_vcs: bool,
@@ -367,7 +367,7 @@ pub struct Cli {
     pub max_delete: String,
 
     // === rsync compatibility flags (hidden, no-op) ===
-    /// Recursive (no-op: sy is always recursive, for rsync compatibility)
+    /// Recursive (no-op: rsy is always recursive, for rsync compatibility)
     #[usage(short = 'r', hide)]
     pub recursive: bool,
 }
