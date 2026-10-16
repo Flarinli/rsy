@@ -31,6 +31,8 @@ pub struct SyncConfig {
     pub suffix: String,
     pub timeout: Option<u64>,
     pub contimeout: Option<u64>,
+    /// Explicit OpenSSH launch settings (`-e`, `--ssh-*`, `--jump`, `--rsy-path`).
+    pub ssh: rsy::ssh::SshSettings,
     pub compression_detection: CompressionDetection,
     pub itemize_changes: bool,
     pub human_readable: bool,
@@ -65,6 +67,7 @@ impl SyncConfig {
             suffix: "~".to_string(),
             timeout: None,
             contimeout: None,
+            ssh: rsy::ssh::SshSettings::default(),
             compression_detection: CompressionDetection::Never,
             itemize_changes: false,
             human_readable: false,

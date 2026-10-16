@@ -43,16 +43,19 @@ pub(super) fn pull_unsupported_reason(config: &SyncConfig) -> Option<&'static st
 pub(super) async fn run(
     source_root: &Path,
     destination_root: &Path,
-    host: &str,
-    user: &Option<String>,
+    target: rsy::ssh::SshTarget,
     config: &SyncConfig,
     scan_options: ScanOptions,
     contents: bool,
 ) -> Result<SyncStats> {
     let started = Instant::now();
     // OpenSSH resolves this alias with the user's own ssh_config; only an
-    // explicit `user@` from the command line overrides it.
-    let target = rsy::ssh::SshTarget::new(host, user.clone());
+    // explicit `user@`/port from the operand or flags overrides it.
+    let port = config
+        .ssh
+        .effective_port(target.port)
+        .map_err(|error| SyncError::Config(error.to_string()))?;
+    let target = target.with_port(port);
     let router_config = RouterConfig {
         // --bwlimit paces the pull at the client's staging write (see
         // fetch_file); the router's outbound limiter stays off so control
@@ -65,6 +68,7 @@ pub(super) async fn run(
     };
     let launch = SshLaunchOptions {
         connect_timeout: config.contimeout,
+        settings: config.ssh.clone(),
     };
     // The pull session root is the remote SOURCE root. The server refuses to
     // create a missing pull root, which is the data-safe direction: a typo'd
@@ -83,7 +87,8 @@ pub(super) async fn run(
     let sender = session.remote().sender();
     // The display source keeps the host qualifier so output surfaces match
     // what the user typed; the scan itself goes through the session root.
-    let mut display_source = std::ffi::OsString::from(format!("{host}:"));
+    let mut display_source = target.alias.clone();
+    display_source.push(":");
     display_source.push(source_root);
     let display_source = std::path::PathBuf::from(display_source);
     let result = async {

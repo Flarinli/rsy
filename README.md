@@ -32,23 +32,115 @@ cargo build --release            # binary at target/release/rsy
 cargo build --release --features acl   # optional: ACL preservation (needs libacl on Linux)
 ```
 
-For SSH sync, the same `rsy` binary must also be on the remote host's `PATH`.
-Static Linux musl builds (`x86_64`/`aarch64-unknown-linux-musl`) are produced
-by CI and work well as drop-in remote agents. They leave out ACL support so
-that they stay fully standalone.
+For SSH sync, the same `rsy` binary must also be on the remote host (see
+[SSH sync](#ssh-sync)). Static Linux builds have no runtime dependencies, which
+makes them easy to copy to servers:
+
+```bash
+rustup target add x86_64-unknown-linux-musl     # or aarch64-unknown-linux-musl
+cargo build --release --target x86_64-unknown-linux-musl
+```
+
+CI produces the same static artifacts. They leave out ACL support so that they
+stay fully standalone.
 
 ## Quick start
 
-```bash
-rsy /source /destination                 # copy the directory itself
-rsy /source/ /destination                # copy its contents (trailing slash)
-rsy /source /destination --dry-run       # preview
-rsy /source /destination --delete        # mirror: delete extras in destination
-rsy -a /source /destination              # archive: recurse, links, perms, times
+### Local
 
-rsy /local user@host:/remote             # SSH push
-rsy user@host:/remote /local             # SSH pull
+```bash
+rsy ~/photos /backup            # creates /backup/photos
+rsy ~/photos/ /backup/photos    # trailing slash: copy the contents
+rsy -n ~/photos/ /backup/photos # dry run: show what would change
+rsy -a --delete ~/photos/ /backup/photos   # exact mirror, keep perms and mtimes
 ```
+
+### Over SSH
+
+```bash
+rsy -a ~/photos/ nas:/srv/photos            # push: local → remote
+rsy -a nas:/srv/photos/ ~/photos            # pull: remote → local
+rsy -a ~/photos/ backup@nas:photos          # relative to the remote home
+rsy -a ~/photos/ ssh://backup@nas:2222/srv/photos   # explicit port
+```
+
+## SSH sync
+
+rsy syncs to and from any machine you can `ssh` into. You don't need a daemon
+or any open ports beyond SSH. Your own OpenSSH client carries the traffic, and
+the same `rsy` binary briefly runs on the other side as an agent.
+
+**Full guide: [docs/ssh.md](docs/ssh.md)** covers setup, every address form,
+recipes (keys, ports, bastions, cron, sudo), performance, the security model
+and troubleshooting.
+
+### Set up in three steps
+
+```bash
+# 1. Put rsy on the remote host (a static musl build has no dependencies)
+scp target/x86_64-unknown-linux-musl/release/rsy nas:~/.local/bin/rsy
+
+# 2. Check that a non-interactive SSH session finds it
+ssh nas 'command -v rsy && rsy --version'
+
+# 3. Sync
+rsy -a ~/photos/ nas:/srv/photos
+```
+
+If step 2 prints nothing, pass the location explicitly with
+`--rsy-path ~/.local/bin/rsy`.
+
+### Remote addresses
+
+| Form | Example |
+|------|---------|
+| `[user@]host:/abs/path` | `alice@nas:/srv/data` |
+| `[user@]host:rel/path` (relative to the remote home; `~/` works too) | `nas:backups/2026` |
+| `ssh://[user@]host[:port]/abs/path` | `ssh://alice@nas:2222/srv/data` |
+| IPv6 | `root@[2001:db8::7]:/srv`, `ssh://[::1]:2222/srv` |
+
+`host` can be any alias from `~/.ssh/config`, which keeps working unchanged:
+`Include`, `Match`, `ProxyJump`, `ControlMaster`, agents and FIDO keys are all
+handled by OpenSSH.
+
+### SSH options
+
+| Flag | Meaning |
+|------|---------|
+| `-e, --rsh "CMD"` | SSH program and arguments, like rsync (`-e "ssh -p 2222"`); also read from `RSY_RSH` |
+| `--ssh-port N` | Port (`ssh -p`) |
+| `--ssh-key FILE` | Identity file (`ssh -i`), repeatable |
+| `--ssh-option K=V` | Any OpenSSH option (`ssh -o`), repeatable |
+| `--jump HOST` | Jump host / bastion (`ssh -J`) |
+| `--rsy-path CMD` | Remote command that starts rsy (default `rsy`, e.g. `/opt/rsy/bin/rsy` or `"sudo -n rsy"`) |
+| `--contimeout N` | Give up connecting after N seconds |
+| `--timeout N` | Abort if no data arrives for N seconds |
+| `-z`, `--bwlimit RATE` | zstd compression (auto-sampled), bandwidth cap |
+
+```bash
+# Key + bastion + keepalive, failing fast instead of prompting (cron-friendly)
+rsy -a --delete \
+    --ssh-key ~/.ssh/backup_ed25519 --jump admin@bastion \
+    --ssh-option BatchMode=yes --ssh-option ServerAliveInterval=15 \
+    ~/data/ app01.internal:/srv/data
+```
+
+### What you get
+
+- **Safe by construction.** Remote paths travel inside the binary protocol and
+  never reach a shell. `--` and `-T` are always passed to `ssh`. The remote
+  agent can't be tricked into following symlinks out of the target directory.
+- **Verified and atomic.** Each file is BLAKE3-checked in staging and then
+  renamed into place. An interrupted sync leaves the old files intact.
+- **Efficient.** Large changed files (≥ 10 MiB) send only changed blocks, in
+  both directions. Many files share one SSH connection. Compression is optional.
+- **Clear failures.** A missing remote `rsy` (exit 127), a refused login
+  (exit 255), a missing `ssh` client or a malformed address each produce a
+  specific error message telling you what to fix.
+
+Both machines must run the same `rsy` version (protocol v3.13). Pulls
+(remote → local) don't support `--remove-source-files` or `--copy-links` yet.
+Remote → remote is not supported.
 
 ## How it works
 
@@ -81,37 +173,6 @@ source scan ─┐
 | Sparse file | Extent-aware copy preserving holes |
 | SSH, changed file ≥ 10 MiB | Rolling delta, in both push and pull |
 | SSH, new or small file | Whole-file stream, optional zstd |
-
-## SSH sync
-
-rsy uses **your own OpenSSH client** as the transport. It runs:
-
-```text
-ssh -T [-l user] [-o ConnectTimeout=N] -- <host> rsy __serve
-```
-
-- Your `~/.ssh/config` applies unchanged. That covers `Host` aliases, `Include`,
-  `Match`, `ProxyJump`, `ControlMaster`, agents and security keys. rsy never
-  parses or rewrites it.
-- Remote paths are **never** placed on the SSH command line. The remote root is
-  sent inside the binary protocol handshake, so shell quoting and injection
-  through paths are not possible.
-- `-T` keeps the binary stream clean even if your config sets `RequestTTY`.
-  `--` ensures a host alias can never be interpreted as an OpenSSH option.
-- The remote agent works relative to a held root directory handle. It walks
-  every path component with `O_NOFOLLOW` directory descriptors, so pre-existing
-  symlinks cannot escape the root.
-- Every remote file is **BLAKE3-verified** after reconstruction in staging and
-  before it is committed. This is the default, not an opt-in.
-- Many files are multiplexed over one SSH connection using protocol v3 frames,
-  which are bounded at 1 MiB. Both peers must run the same exact protocol
-  version, currently **v3.13**.
-
-Useful flags: `--timeout N` (I/O idle timeout), `--contimeout N` (SSH connect
-timeout), `--bwlimit RATE`, `-z/--compress`.
-
-Current limitations for **pull** (remote → local): `--remove-source-files` and
-`--copy-links` are refused before any transfer starts.
 
 ## Common flags
 

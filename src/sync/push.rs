@@ -19,8 +19,7 @@ use std::time::Instant;
 pub(super) async fn run(
     source_root: &Path,
     destination_root: &Path,
-    host: &str,
-    user: &Option<String>,
+    target: rsy::ssh::SshTarget,
     config: &SyncConfig,
     scan_options: ScanOptions,
     contents: bool,
@@ -41,8 +40,12 @@ pub(super) async fn run(
     .map_err(map_io)?;
     let started = Instant::now();
     // OpenSSH resolves this alias with the user's own ssh_config; only an
-    // explicit `user@` from the command line overrides it.
-    let target = rsy::ssh::SshTarget::new(host, user.clone());
+    // explicit `user@`/port from the operand or flags overrides it.
+    let port = config
+        .ssh
+        .effective_port(target.port)
+        .map_err(|error| SyncError::Config(error.to_string()))?;
+    let target = target.with_port(port);
     let router_config = RouterConfig {
         // --bwlimit paces outbound file-content bytes in the router writer; all
         // other frame kinds bypass the limiter so control traffic never waits
@@ -56,6 +59,7 @@ pub(super) async fn run(
     let launch = SshLaunchOptions {
         // --contimeout bounds the OpenSSH connection establishment.
         connect_timeout: config.contimeout,
+        settings: config.ssh.clone(),
     };
     let session = SshRemoteSession::connect_operand_with_options(
         &target,
