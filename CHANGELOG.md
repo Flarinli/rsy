@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- SSH launch options: `-e/--rsh` (and `RSY_RSH`) with shell-free word
+  splitting, `--ssh-port`, `--ssh-key`, `--ssh-option`, `--jump`, and
+  `--rsy-path` for an agent outside the remote `PATH`.
+- `ssh://[user@]host[:port]/path` operands and bracketed IPv6 hosts
+  (`user@[::1]:/path`, `ssh://[::1]:2222/path`).
+- scp-style `host:`, `host:~` and `host:~/path` mean the remote home directory
+  instead of a literal `~` directory; `host:~user/…` is refused.
+- Specific launch errors: remote agent not found (exit 127) or not runnable
+  (126), SSH connection/authentication failure (255), and a missing local SSH
+  client, instead of a bare handshake EOF.
+- SSH guide: `docs/ssh.md`.
+
 ### Changed
 
 - Project renamed from `sy` to `rsy`. The crate, binary, remote agent invocation
@@ -27,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- On Linux and macOS, `a:/path` now names host `a`; it was previously taken for
+  a Windows drive letter and synced into a local `a:` directory.
+- Malformed remote specs (`ssh://host`, port 0, empty host/user, `-`-prefixed
+  host or user) are errors instead of being treated as local paths.
+- Remote-to-remote syncs report that one side must be local instead of an
+  object-store error.
+- Error messages no longer repeat the same cause twice.
 - Local `--remove-source-files` now verifies destination bytes before unlinking
   a source file; receipts without verified content no longer authorize removal.
 

@@ -71,6 +71,28 @@ I/O timeout in seconds (for SSH connections)
 \fB\-\-contimeout\fR \fI<CONTIMEOUT>\fR
 Connection timeout in seconds (for SSH connections)
 .TP
+\fB\-e, \-\-rsh\fR \fI<RSH>\fR
+Remote shell command, like rsync \-e (default: ssh, or $RSY_RSH)
+
+Split into words without a shell; quotes and backslashes are honored. Example: \-e "ssh \-p 2222 \-i ~/.ssh/backup_key"
+.TP
+\fB\-\-ssh\-port\fR \fI<SSH_PORT>\fR
+SSH port (ssh \-p); ssh://host:PORT/ operands set it too
+.TP
+\fB\-\-ssh\-key\fR \fI<SSH_KEY>\fR
+SSH identity file (ssh \-i); can be repeated
+.TP
+\fB\-\-ssh\-option\fR \fI<SSH_OPTION>\fR
+Extra OpenSSH option KEY=VALUE (ssh \-o); can be repeated Examples: "ServerAliveInterval=15", "StrictHostKeyChecking=accept\-new"
+.TP
+\fB\-\-jump\fR \fI<JUMP>\fR
+Connect through jump host(s) (ssh \-J), e.g. "bastion" or "me@gw:2222,inner"
+.TP
+\fB\-\-rsy\-path\fR \fI<RSY_PATH>\fR
+Command that starts rsy on the remote host (default: rsy)
+
+Run by the remote login shell, e.g. "/opt/rsy/bin/rsy" or "sudo \-n rsy".
+.TP
 \fB\-i, \-\-itemize\-changes\fR
 Show what changed for each file (like rsync \-i)
 .TP
@@ -256,6 +278,24 @@ rsy /local user@host:/remote
 .PP
 .RS 4
 rsy user@host:/remote /local
+.RE
+.PP
+\fBSSH with a port (URL form; IPv6 as ssh://[::1]:2222/path)\fR
+.PP
+.RS 4
+rsy /local ssh://user@host:2222/srv/backup
+.RE
+.PP
+\fBSSH key and jump host; host:path is relative to the remote home\fR
+.PP
+.RS 4
+rsy \-e "ssh \-i ~/.ssh/backup_key" \-\-jump bastion /local host:backups/
+.RE
+.PP
+\fBrsy is not on the remote PATH\fR
+.PP
+.RS 4
+rsy \-\-rsy\-path /opt/rsy/bin/rsy /local host:/srv
 .RE
 .PP
 \fBQuiet mode (only errors)\fR

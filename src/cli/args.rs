@@ -32,6 +32,18 @@ use std::str::FromStr;
 #[usage(example("rsy /local user@host:/remote", header = "Remote sync (SSH push)"))]
 #[usage(example("rsy user@host:/remote /local", header = "Remote sync (SSH pull)"))]
 #[usage(example(
+    "rsy /local ssh://user@host:2222/srv/backup",
+    header = "SSH with a port (URL form; IPv6 as ssh://[::1]:2222/path)"
+))]
+#[usage(example(
+    "rsy -e \"ssh -i ~/.ssh/backup_key\" --jump bastion /local host:backups/",
+    header = "SSH key and jump host; host:path is relative to the remote home"
+))]
+#[usage(example(
+    "rsy --rsy-path /opt/rsy/bin/rsy /local host:/srv",
+    header = "rsy is not on the remote PATH"
+))]
+#[usage(example(
     "rsy /source /destination --quiet",
     header = "Quiet mode (only errors)"
 ))]
@@ -110,13 +122,13 @@ impl usage::spec::ValueEnum for CompressionDetection {
 pub enum PathError {
     #[error("object-store URLs require UTF-8: {0:?}")]
     ObjectUrl(PathBuf),
-    #[error("remote host/user must be UTF-8 (use ./ for a local path): {0:?}")]
-    RemoteAuthority(PathBuf),
+    #[error(transparent)]
+    Remote(#[from] crate::path::RemoteSpecError),
 }
 
 fn sync_path(path: PathBuf) -> Result<SyncPath, PathError> {
     if let Some(text) = path.to_str() {
-        return Ok(SyncPath::parse(text));
+        return Ok(SyncPath::parse(text)?);
     }
     if path.as_os_str().as_encoded_bytes().starts_with(b"s3://")
         || path.as_os_str().as_encoded_bytes().starts_with(b"gs://")
@@ -124,33 +136,21 @@ fn sync_path(path: PathBuf) -> Result<SyncPath, PathError> {
         return Err(PathError::ObjectUrl(path));
     }
 
-    // Remote roots are native paths too. Parse only the UTF-8 host prefix;
-    // retain the bytes after ':' and the original trailing-slash semantics.
+    // Remote roots are native paths too. The authority must be UTF-8; the
+    // bytes after it and the original trailing-slash semantics are retained.
     #[cfg(unix)]
     {
         use std::os::unix::ffi::{OsStrExt, OsStringExt};
         let bytes = path.as_os_str().as_bytes();
         let has_trailing_slash = bytes.ends_with(b"/") || bytes.ends_with(b"\\");
-        if let Some(colon) = bytes.iter().position(|&byte| byte == b':') {
-            let prefix = &bytes[..colon];
-            let is_drive = matches!(prefix, [b'a'..=b'z' | b'A'..=b'Z']);
-            if !is_drive && !prefix.is_empty() && !prefix.contains(&b'/') {
-                if let Ok(prefix) = std::str::from_utf8(prefix) {
-                    let (user, host) = match prefix.split_once('@') {
-                        Some((user, host)) => (Some(user.to_owned()), host.to_owned()),
-                        None => (None, prefix.to_owned()),
-                    };
-                    return Ok(SyncPath::Remote {
-                        user,
-                        host,
-                        path: PathBuf::from(std::ffi::OsString::from_vec(
-                            bytes[colon + 1..].to_vec(),
-                        )),
-                        has_trailing_slash,
-                    });
-                }
-                return Err(PathError::RemoteAuthority(path));
-            }
+        if let Some((authority, remote_path)) = crate::path::split_remote(bytes)? {
+            return Ok(SyncPath::Remote {
+                user: authority.user,
+                host: authority.host,
+                port: authority.port,
+                path: PathBuf::from(std::ffi::OsString::from_vec(remote_path.to_vec())),
+                has_trailing_slash,
+            });
         }
         Ok(SyncPath::Local {
             path,
