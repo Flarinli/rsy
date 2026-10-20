@@ -21,6 +21,7 @@ pub enum EndpointPair {
     Ssh {
         host: String,
         user: Option<String>,
+        port: Option<u16>,
         operand: PathBuf,
     },
 }
@@ -32,10 +33,15 @@ impl EndpointPair {
                 Ok(Self::Local(Box::new(LocalEndpoint::new(path.clone()))))
             }
             crate::path::SyncPath::Remote {
-                host, user, path, ..
+                host,
+                user,
+                port,
+                path,
+                ..
             } => Ok(Self::Ssh {
                 host: host.clone(),
                 user: user.clone(),
+                port: *port,
                 operand: path.clone(),
             }),
             crate::path::SyncPath::S3 { .. } | crate::path::SyncPath::Gcs { .. } => Err(
@@ -282,12 +288,13 @@ impl SyncSession {
     }
 
     async fn streaming_push(&self) -> Result<SyncStats> {
-        let (host, user, dest_root) = match &self.dest {
+        let (host, user, port, dest_root) = match &self.dest {
             EndpointPair::Ssh {
                 host,
                 user,
+                port,
                 operand,
-            } => (host, user, operand),
+            } => (host, user, *port, operand),
             _ => {
                 return Err(SyncError::Config(
                     "destination must be SSH for push".to_string(),
@@ -297,8 +304,7 @@ impl SyncSession {
         super::push::run(
             self.source.path(),
             dest_root,
-            host,
-            user,
+            rsy::ssh::SshTarget::new(host, user.clone()).with_port(port),
             &self.config,
             self.scan_options,
             self.source_contents,
@@ -307,12 +313,13 @@ impl SyncSession {
     }
 
     async fn streaming_pull(&self) -> Result<SyncStats> {
-        let (host, user, source_root) = match &self.source {
+        let (host, user, port, source_root) = match &self.source {
             EndpointPair::Ssh {
                 host,
                 user,
+                port,
                 operand,
-            } => (host, user, operand),
+            } => (host, user, *port, operand),
             _ => return Err(SyncError::Config("source must be SSH for pull".to_string())),
         };
         #[cfg(feature = "ssh")]
@@ -323,8 +330,7 @@ impl SyncSession {
             super::pull::run(
                 source_root,
                 self.dest.path(),
-                host,
-                user,
+                rsy::ssh::SshTarget::new(host, user.clone()).with_port(port),
                 &self.config,
                 self.scan_options,
                 self.source_contents,
@@ -333,7 +339,7 @@ impl SyncSession {
         }
         #[cfg(not(feature = "ssh"))]
         {
-            let _ = (host, user, source_root);
+            let _ = (host, user, port, source_root);
             Err(SyncError::Config("SSH support is disabled".to_string()))
         }
     }

@@ -37,9 +37,27 @@ async fn main() {
     // Parse user-facing CLI arguments only after private-agent dispatch.
     let mut cli = Cli::parse();
     if let Err(e) = run(&mut cli).await {
-        eprintln!("Error: {:#}", e);
+        eprintln!("Error: {}", render_error(&e));
         std::process::exit(1);
     }
+}
+
+/// `{:#}` repeats a cause whenever a wrapper already embeds its source in its
+/// own message (e.g. `I/O error: {0}` over `io::Error::other`). Skip layers
+/// whose text the rendered chain already ends with.
+fn render_error(error: &anyhow::Error) -> String {
+    let mut rendered = String::new();
+    for cause in error.chain() {
+        let message = cause.to_string();
+        if message.is_empty() || rendered.ends_with(&message) {
+            continue;
+        }
+        if !rendered.is_empty() {
+            rendered.push_str(": ");
+        }
+        rendered.push_str(&message);
+    }
+    rendered
 }
 
 async fn run(cli: &mut Cli) -> Result<()> {
@@ -82,12 +100,12 @@ async fn run(cli: &mut Cli) -> Result<()> {
         // Apply profile settings (CLI args take precedence)
         if cli.source.is_none() {
             if let Some(ref source_str) = profile.source {
-                cli.source = Some(SyncPath::parse(source_str));
+                cli.source = Some(SyncPath::parse(source_str)?);
             }
         }
         if cli.destination.is_none() {
             if let Some(ref dest_str) = profile.destination {
-                cli.destination = Some(SyncPath::parse(dest_str));
+                cli.destination = Some(SyncPath::parse(dest_str)?);
             }
         }
 
@@ -340,6 +358,30 @@ Or install from local source with: cargo install --path . --features acl"#
         anyhow::bail!("BSD flag preservation is only supported on macOS");
     }
 
+    // SSH launch settings only matter (and are only validated) for remote
+    // operands, so a stray RSY_RSH never breaks a local sync.
+    let ssh = if source.is_remote() || destination.is_remote() {
+        let env_rsh = match std::env::var_os("RSY_RSH") {
+            Some(value) => Some(
+                value
+                    .into_string()
+                    .map_err(|_| anyhow::anyhow!("RSY_RSH must be valid UTF-8"))?,
+            ),
+            None => None,
+        };
+        let rsh = cli.rsh.clone().or(env_rsh);
+        rsy::ssh::SshSettings::new(
+            rsh.as_deref(),
+            cli.ssh_port,
+            cli.ssh_key.clone(),
+            cli.ssh_option.clone(),
+            cli.jump.clone(),
+            cli.rsy_path.clone(),
+        )?
+    } else {
+        rsy::ssh::SshSettings::default()
+    };
+
     let config = sync::SyncConfig {
         dry_run: cli.dry_run,
         diff_mode: cli.diff,
@@ -387,6 +429,7 @@ Or install from local source with: cargo install --path . --features acl"#
         suffix: cli.suffix.clone(),
         timeout: cli.timeout,
         contimeout: cli.contimeout,
+        ssh,
         compression_detection: cli.compress,
         itemize_changes: cli.itemize_changes,
         human_readable: cli.human_readable,

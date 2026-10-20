@@ -387,6 +387,17 @@ Pass the original host alias to OpenSSH and only explicit user overrides. Do not
 
 The user-provided remote root is never a shell argument. It is part of the binary protocol handshake.
 
+Explicit overrides are limited to what the operator typed: operand user/port
+(`user@host`, `ssh://host:port/`), `-e/--rsh` words (split without a shell),
+`--ssh-port`, `--ssh-key`, `--ssh-option`, `--jump` and `--contimeout`. The argv
+is `<rsh words> -T [overrides] -- <host> <agent> __serve`. `--rsy-path` replaces
+`<agent>` and is the only operator text the remote login shell interprets, like
+rsync's `--rsync-path`; sync paths never are. scp-style `~`/`~/` shorthands are
+resolved client-side as paths relative to the login directory, not by a remote
+shell. Launch failures are classified from the OpenSSH exit status (127/126
+agent missing or not runnable, 255 connection/authentication) before reporting a
+handshake EOF. User-facing documentation lives in `docs/ssh.md`.
+
 ## Protocol v3
 
 Protocol v3 is a clean break. Do not extend v2 for compatibility.
